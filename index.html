@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>MLB Phrase Book — Massage Therapist Edition</title>
+  <title>MLB Phrase Book — Triple Master Edition</title>
 
   <!-- ── PWA / iPhone ── -->
   <link rel="manifest" href="./manifest.json" />
   <meta name="theme-color" content="#0a1628" />
-  <!-- iOS ホーム画面アイコン・全画面起動 -->
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Phrase Book" />
@@ -16,7 +15,6 @@
 
   <!-- Supabase クライアント -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-  <!-- 本番ビルド（開発版より約80%軽量） -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -28,6 +26,7 @@
       --red: #c8102e; --white: #f5f5f5;
       --gray-100: #f0f2f5; --gray-200: #e2e6ea; --gray-400: #9aa5b4; --gray-600: #627284;
       --text: #1a2332;
+      --es-accent: #c8102e; --es-bg: #fff5f5; --es-border: #f5b8c0;
       --radius: 10px;
       --shadow: 0 2px 12px rgba(10,22,40,.12);
       --shadow-lg: 0 8px 32px rgba(10,22,40,.18);
@@ -42,6 +41,7 @@
     .header h1 { font-size: 1.4rem; font-weight: 700; }
     .header-sub { font-size: .78rem; color: var(--gold-light); opacity: .9; margin-left: 58px; }
     .voice-indicator { font-size: .7rem; color: var(--gold-light); opacity: .7; margin-left: 58px; margin-top: 2px; }
+    .triple-badge { font-size: .65rem; background: var(--gold); color: var(--navy); border-radius: 10px; padding: 1px 8px; font-weight: 700; letter-spacing: .5px; margin-left: 6px; vertical-align: middle; }
 
     .main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
 
@@ -51,8 +51,8 @@
     .translate-panel-header-icon { width: 28px; height: 28px; background: var(--gold); border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
     .translate-panel-title { font-size: .9rem; font-weight: 700; color: #fff; }
     .translate-panel-subtitle { font-size: .72rem; color: var(--gold-light); opacity: .85; margin-left: auto; }
-    .translate-body { display: grid; grid-template-columns: 1fr auto 1fr; min-height: 160px; }
-    @media (max-width: 580px) {
+    .translate-body { display: grid; grid-template-columns: 1fr auto 1fr; align-items: start; }
+    @media (max-width: 620px) {
       .translate-body { grid-template-columns: 1fr; }
       .translate-divider { height: 36px; border-left: none; border-right: none; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); }
     }
@@ -64,26 +64,42 @@
     .translate-clear { background: none; border: none; cursor: pointer; font-size: .75rem; color: var(--gray-400); padding: 4px 8px; border-radius: 6px; }
     .translate-clear:hover { color: var(--red); background: #fdecea; }
     .char-count { font-size: .7rem; color: var(--gray-400); }
-    .translate-divider { display: flex; align-items: center; justify-content: center; padding: 0 4px; background: var(--gray-100); border-left: 1px solid var(--gray-200); border-right: 1px solid var(--gray-200); }
+    .translate-divider { display: flex; align-items: flex-start; justify-content: center; padding: 20px 4px 0; background: var(--gray-100); border-left: 1px solid var(--gray-200); border-right: 1px solid var(--gray-200); }
     .translate-arrow-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--navy); display: flex; align-items: center; justify-content: center; color: #fff; font-size: 13px; }
-    .translate-dst { padding: 16px; display: flex; flex-direction: column; gap: 8px; background: #f8faff; }
-    .translate-result-en { font-size: 1.05rem; font-weight: 600; color: var(--navy); line-height: 1.55; min-height: 90px; flex: 1; white-space: pre-wrap; }
-    .translate-result-en.placeholder { font-weight: 400; color: var(--gray-400); font-size: .9rem; }
-    .translate-result-en.loading { color: var(--gray-400); font-size: .88rem; font-style: italic; display: flex; align-items: center; gap: 8px; }
-    .translate-result-en.error { color: var(--red); font-size: .85rem; font-weight: 400; }
+
+    /* 右側: 言語ブロックコンテナ */
+    .translate-dst { display: flex; flex-direction: column; }
+    .lang-block { padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+    .lang-block-es { background: var(--es-bg); border-top: 1.5px dashed var(--es-border); }
+    .lang-flag-label { font-size: .72rem; font-weight: 700; letter-spacing: .7px; display: flex; align-items: center; gap: 5px; margin-bottom: 2px; }
+    .lang-flag-label.en { color: #1e3460; }
+    .lang-flag-label.es { color: var(--es-accent); }
+
+    .translate-result-text { font-size: 1.05rem; font-weight: 600; color: var(--navy); line-height: 1.55; min-height: 50px; white-space: pre-wrap; }
+    .translate-result-text.placeholder { font-weight: 400; color: var(--gray-400); font-size: .88rem; min-height: 40px; }
+    .translate-result-text.loading { color: var(--gray-400); font-size: .88rem; font-style: italic; display: flex; align-items: center; gap: 8px; }
+    .translate-result-text.error { color: var(--red); font-size: .85rem; font-weight: 400; }
+    .translate-result-text.es-text { color: #8b1a1a; }
 
     /* IPA 自動生成エリア */
-    .translate-ipa-row { display: flex; align-items: center; gap: 8px; min-height: 22px; margin: 4px 0 2px; }
+    .translate-ipa-row { display: flex; align-items: center; gap: 8px; min-height: 20px; }
     .translate-ipa-text { font-size: .82rem; color: #5c6e8a; font-family: 'Georgia','Times New Roman',serif; letter-spacing: .3px; }
+    .translate-ipa-text.es { color: #8b4513; }
     .translate-ipa-loading { font-size: .75rem; color: var(--gray-400); font-style: italic; display: flex; align-items: center; gap: 6px; }
     .spinner-sm { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--gray-200); border-top-color: var(--navy-light); animation: spin .7s linear infinite; flex-shrink: 0; }
 
-    .translate-dst-footer { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-    .speak-big-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: none; border-radius: 8px; background: var(--navy); color: #fff; cursor: pointer; font-size: .85rem; font-weight: 600; transition: background .15s; }
+    .lang-speak-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .speak-big-btn { display: flex; align-items: center; gap: 6px; padding: 7px 14px; border: none; border-radius: 8px; background: var(--navy); color: #fff; cursor: pointer; font-size: .82rem; font-weight: 600; transition: background .15s; }
     .speak-big-btn:hover { background: var(--navy-light); }
     .speak-big-btn:disabled { opacity: .4; cursor: default; }
     .speak-big-btn.speaking { background: var(--gold); color: var(--navy); animation: pulse 1s infinite; }
-    .save-translate-btn { display: flex; align-items: center; gap: 5px; padding: 8px 14px; border: 1.5px solid var(--gold); border-radius: 8px; background: var(--gold-pale); cursor: pointer; font-size: .82rem; font-weight: 600; color: #7a5c00; }
+    .speak-big-btn.es-btn { background: var(--es-accent); }
+    .speak-big-btn.es-btn:hover { background: #a00d26; }
+    .speak-big-btn.es-btn.speaking { background: var(--gold); color: var(--navy); }
+
+    /* 保存ボタン行 */
+    .translate-save-row { padding: 10px 16px 14px; border-top: 1px solid var(--gray-200); display: flex; justify-content: flex-end; }
+    .save-translate-btn { display: flex; align-items: center; gap: 5px; padding: 9px 18px; border: 1.5px solid var(--gold); border-radius: 8px; background: var(--gold-pale); cursor: pointer; font-size: .85rem; font-weight: 600; color: #7a5c00; }
     .save-translate-btn:hover { background: #fdefc7; }
     .save-translate-btn:disabled { opacity: .4; cursor: default; }
     .spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--gray-200); border-top-color: var(--navy-light); animation: spin .7s linear infinite; flex-shrink: 0; }
@@ -98,14 +114,15 @@
     .add-btn { padding: 9px 18px; background: var(--gold); border: none; border-radius: var(--radius); font-size: .88rem; font-weight: 600; cursor: pointer; color: var(--navy); white-space: nowrap; }
     .add-btn:hover { background: var(--gold-light); }
 
-    /* Filter row + グループ追加 */
-    .filter-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-    .filter-btn { padding: 7px 14px; border: 1.5px solid var(--gray-200); border-radius: 20px; background: #fff; font-size: .82rem; cursor: pointer; transition: all .15s; white-space: nowrap; color: var(--gray-600); display: flex; align-items: center; gap: 5px; }
+    /* Filter row */
+    .filter-row { display: flex; gap: 8px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; scrollbar-width: none; align-items: center; margin-bottom: 14px; }
+    .filter-row::-webkit-scrollbar { display: none; }
+    .filter-btn { padding: 7px 14px; border: 1.5px solid var(--gray-200); border-radius: 20px; background: #fff; font-size: .82rem; cursor: pointer; transition: all .15s; white-space: nowrap; color: var(--gray-600); display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
     .filter-btn:hover { border-color: var(--navy-light); color: var(--navy); }
     .filter-btn.active { background: var(--navy); border-color: var(--navy); color: #fff; }
     .filter-btn .del-cat { font-size: .65rem; opacity: .6; margin-left: 2px; border: none; background: none; cursor: pointer; padding: 0 2px; color: inherit; }
     .filter-btn .del-cat:hover { opacity: 1; }
-    .add-cat-btn { padding: 7px 12px; border: 1.5px dashed var(--gray-400); border-radius: 20px; background: transparent; font-size: .82rem; cursor: pointer; color: var(--gray-600); white-space: nowrap; }
+    .add-cat-btn { padding: 7px 12px; border: 1.5px dashed var(--gray-400); border-radius: 20px; background: transparent; font-size: .82rem; cursor: pointer; color: var(--gray-600); white-space: nowrap; flex-shrink: 0; }
     .add-cat-btn:hover { border-color: var(--navy-light); color: var(--navy); }
 
     .stats { font-size: .78rem; color: var(--gray-600); margin-bottom: 12px; }
@@ -116,21 +133,29 @@
     .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
     .card-badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: .7rem; font-weight: 600; margin-bottom: 8px; text-transform: uppercase; letter-spacing: .5px; }
     .card-phrase { font-size: 1rem; font-weight: 600; color: var(--text); line-height: 1.35; margin-bottom: 3px; padding-right: 62px; }
-    .card-ipa { font-size: .75rem; color: #5c6e8a; font-family: 'Georgia','Times New Roman',serif; margin-bottom: 4px; }
-    .card-reading { font-size: .78rem; color: var(--gray-400); margin-bottom: 8px; }
-    .card-meaning { font-size: .86rem; color: var(--gray-600); line-height: 1.5; border-top: 1px solid var(--gray-200); padding-top: 8px; }
-    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+    .card-ipa { font-size: .75rem; color: #5c6e8a; font-family: 'Georgia','Times New Roman',serif; margin-bottom: 2px; }
+    .card-reading { font-size: .78rem; color: var(--gray-400); margin-bottom: 6px; }
+    /* スペイン語行 */
+    .card-es-block { margin: 6px 0 4px; padding: 6px 10px; background: var(--es-bg); border-left: 3px solid var(--es-border); border-radius: 0 6px 6px 0; }
+    .card-phrase-es { font-size: .9rem; font-weight: 600; color: #8b1a1a; line-height: 1.35; }
+    .card-ipa-es { font-size: .72rem; color: #8b4513; font-family: 'Georgia','Times New Roman',serif; margin-top: 2px; }
+    .card-meaning { font-size: .86rem; color: var(--gray-600); line-height: 1.5; border-top: 1px solid var(--gray-200); padding-top: 8px; margin-top: 4px; }
+    .card-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
     .tag { font-size: .68rem; padding: 2px 7px; background: var(--gray-100); color: var(--gray-600); border-radius: 10px; }
     .card-actions { position: absolute; top: 12px; right: 12px; display: flex; gap: 4px; opacity: 0; transition: opacity .15s; }
     .card:hover .card-actions { opacity: 1; }
-    .icon-btn { width: 26px; height: 26px; border: none; background: var(--gray-100); border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background .12s; }
+    .icon-btn { width: 36px; height: 36px; border: none; background: var(--gray-100); border-radius: 6px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: background .12s; }
     .icon-btn:hover { background: var(--gray-200); }
     .icon-btn.delete:hover { background: #fdecea; }
-    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; border-top: 1px solid var(--gray-200); padding: 8px 0 12px; }
+    .card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; border-top: 1px solid var(--gray-200); padding: 8px 0 10px; gap: 6px; }
+    .card-speak-group { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; }
     .speak-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border: 1.5px solid var(--gray-200); border-radius: 20px; background: #fff; cursor: pointer; font-size: .74rem; color: var(--gray-600); transition: all .15s; }
     .speak-btn:hover { border-color: var(--navy-light); color: var(--navy); background: #f0f4ff; }
     .speak-btn.speaking { border-color: var(--gold); color: #7a5c00; background: var(--gold-pale); animation: pulse 1s infinite; }
-    .word-toggle-btn { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1.5px solid var(--gray-200); border-radius: 20px; background: #fff; cursor: pointer; font-size: .74rem; color: var(--gray-600); transition: all .15s; }
+    .speak-btn.es { border-color: var(--es-border); color: var(--es-accent); }
+    .speak-btn.es:hover { border-color: var(--es-accent); background: var(--es-bg); }
+    .speak-btn.es.speaking { border-color: var(--gold); color: #7a5c00; background: var(--gold-pale); animation: pulse 1s infinite; }
+    .word-toggle-btn { display: flex; align-items: center; gap: 4px; padding: 5px 10px; border: 1.5px solid var(--gray-200); border-radius: 20px; background: #fff; cursor: pointer; font-size: .74rem; color: var(--gray-600); transition: all .15s; flex-shrink: 0; }
     .word-toggle-btn:hover { border-color: var(--navy-light); color: var(--navy); }
     .word-toggle-btn.open { border-color: var(--navy-light); color: var(--navy); background: #f0f4ff; }
 
@@ -147,7 +172,7 @@
 
     /* Modals */
     .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-    .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 520px; box-shadow: var(--shadow-lg); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
+    .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 540px; box-shadow: var(--shadow-lg); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
     .modal-sm { max-width: 360px; }
     .modal-header { background: var(--navy); color: #fff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
     .modal-header h2 { font-size: 1rem; font-weight: 600; }
@@ -166,6 +191,11 @@
     .btn-save { padding: 8px 22px; background: var(--navy); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; }
     .btn-save:hover { background: var(--navy-light); }
 
+    /* フォームセクション区切り */
+    .form-section-label { font-size: .72rem; font-weight: 700; letter-spacing: .7px; padding: 8px 10px 6px; border-radius: 6px; margin: 16px 0 10px; }
+    .form-section-label.en { background: #e8edf8; color: #1e3460; }
+    .form-section-label.es { background: var(--es-bg); color: var(--es-accent); border: 1px solid var(--es-border); }
+
     /* Color swatches */
     .color-swatch-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
     .color-swatch { width: 28px; height: 28px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .1s; }
@@ -176,10 +206,16 @@
     .detail-phrase { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 4px; }
     .detail-ipa { font-size: .85rem; color: #5c6e8a; font-family: 'Georgia','Times New Roman',serif; margin-bottom: 4px; }
     .detail-reading { font-size: .85rem; color: var(--gray-400); margin-bottom: 12px; }
-    .detail-speak-row { margin-bottom: 16px; }
+    .detail-speak-row { margin-bottom: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
     .detail-speak-btn { display: flex; align-items: center; gap: 6px; padding: 9px 18px; border: none; border-radius: 8px; background: var(--navy); color: #fff; cursor: pointer; font-size: .88rem; font-weight: 600; }
     .detail-speak-btn:hover { background: var(--navy-light); }
     .detail-speak-btn.speaking { background: var(--gold); color: var(--navy); animation: pulse 1s infinite; }
+    .detail-speak-btn.es-btn { background: var(--es-accent); }
+    .detail-speak-btn.es-btn:hover { background: #a00d26; }
+    /* ES ブロック */
+    .detail-es-block { background: var(--es-bg); border: 1.5px solid var(--es-border); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+    .detail-es-phrase { font-size: 1.1rem; font-weight: 700; color: #8b1a1a; margin-bottom: 3px; }
+    .detail-es-ipa { font-size: .82rem; color: #8b4513; font-family: 'Georgia','Times New Roman',serif; margin-bottom: 10px; }
     .detail-section { margin-bottom: 14px; }
     .detail-label { font-size: .73rem; font-weight: 700; color: var(--gray-400); text-transform: uppercase; letter-spacing: .7px; margin-bottom: 6px; }
     .detail-value { font-size: .9rem; color: var(--text); line-height: 1.55; }
@@ -203,50 +239,24 @@
     @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
 
     /* ══ iPhone / モバイル最適化 ══ */
-
-    /* Safe area（ノッチ・ホームバー対応） */
     .header { padding-top: max(20px, env(safe-area-inset-top)); }
     .main   { padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 24px)); }
-
-    /* フィルター行: 横スクロール */
-    .filter-row {
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      padding-bottom: 6px;
-      scrollbar-width: none;
-    }
-    .filter-row::-webkit-scrollbar { display: none; }
     .filter-btn, .add-cat-btn { flex-shrink: 0; }
-
-    /* タッチターゲット最小 44px */
     .speak-btn, .word-toggle-btn, .filter-btn, .add-btn, .add-cat-btn,
     .speak-big-btn, .save-translate-btn, .btn-save, .btn-cancel { min-height: 44px; }
-    .icon-btn { width: 36px; height: 36px; }
 
-    /* スマホ: 1カラム */
     @media (max-width: 520px) {
       .card-grid { grid-template-columns: 1fr; }
       .header h1 { font-size: 1.2rem; }
       .translate-body { grid-template-columns: 1fr; }
-      .translate-divider {
-        border-left: none; border-right: none;
-        border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200);
-        height: 36px; padding: 0;
-      }
+      .translate-divider { border-left: none; border-right: none; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); height: 36px; padding: 0; }
       .translate-arrow-icon { transform: rotate(90deg); }
-      .translate-dst-footer { gap: 8px; }
-      .speak-big-btn, .save-translate-btn { flex: 1; justify-content: center; }
       .modal { border-radius: 18px 18px 0 0; max-height: 95vh; position: fixed; bottom: 0; left: 0; right: 0; width: 100%; }
       .modal-overlay { align-items: flex-end; }
     }
 
     /* オフラインバナー */
-    .offline-banner {
-      background: #7b1fa2; color: #fff;
-      text-align: center; font-size: .78rem; padding: 6px 16px;
-      position: sticky; top: 0; z-index: 200;
-    }
+    .offline-banner { background: #7b1fa2; color: #fff; text-align: center; font-size: .78rem; padding: 6px 16px; position: sticky; top: 0; z-index: 200; }
   </style>
 </head>
 <body>
@@ -255,20 +265,33 @@
   const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
   /* ══════════════════════════════════════════════════════════
-     ▼▼▼  Supabase 設定  ▼▼▼
-     Supabase Dashboard > Settings > API からコピーしてください
-     https://supabase.com/dashboard/project/＜your-project＞/settings/api
+     ▼ Supabase 設定
   ══════════════════════════════════════════════════════════ */
   const SUPABASE_URL      = "https://gfwlwmyejrdugfhldpqv.supabase.co";
   const SUPABASE_ANON_KEY = "sb_publishable_kUCDEQeGEyAwbC8GdeGorg_1JPK7n11";
-  /* ══════════════════════════════════════════════════════════ */
 
-  /* Supabase クライアント（未設定なら null → localStorage のみで動作） */
+  /* ══════════════════════════════════════════════════════════
+     ▼ APP CONFIG — 将来の多言語分離・商用展開用
+       "en" のみ → langs: ["en"]  （英語版アプリ）
+       "es" のみ → langs: ["es"]  （スペイン語版アプリ）
+       両方     → langs: ["en","es"] （現在: トリプルマスター）
+  ══════════════════════════════════════════════════════════ */
+  const APP_CONFIG = {
+    appName:     "MLB Phrase Book",
+    edition:     "Triple Master",
+    langs:       ["en", "es"],   // ← ここだけ変えれば言語を制御できる
+    primaryLang: "en",
+    inputLang:   "ja",
+  };
+
+  const HAS_EN = APP_CONFIG.langs.includes("en");
+  const HAS_ES = APP_CONFIG.langs.includes("es");
+
+  /* ── Supabase クライアント ──────────────────────────────── */
   const sb = (() => {
     try {
-      if (!SUPABASE_URL.includes("YOUR") && window.supabase) {
+      if (!SUPABASE_URL.includes("YOUR") && window.supabase)
         return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      }
     } catch {}
     return null;
   })();
@@ -276,19 +299,14 @@
   /* ── DB ヘルパー ────────────────────────────────────────── */
   const db = {
     ready: !!sb,
-
-    /* フレーズを JS オブジェクト形式に変換（DB → App） */
-    _fromRow: (r) => ({ ...r, tags: r.tags || [], words: r.words || [] }),
-
-    /* フレーズを DB 行形式に変換（App → DB） */
+    _fromRow: (r) => ({ ...r, tags: r.tags || [], words: r.words || [], phrase_es: r.phrase_es || "", ipa_es: r.ipa_es || "" }),
     _toRow: (p) => ({
       id: p.id, phrase: p.phrase, ipa: p.ipa || "", reading: p.reading || "",
       meaning: p.meaning || "", category: p.category, example: p.example || "",
       tags: Array.isArray(p.tags) ? p.tags : [],
-      starred: !!p.starred,
-      words: p.words || [],
+      starred: !!p.starred, words: p.words || [],
+      phrase_es: p.phrase_es || "", ipa_es: p.ipa_es || "",
     }),
-
     async loadAll() {
       if (!sb) return null;
       const [pr, ca] = await Promise.all([
@@ -300,27 +318,21 @@
         customCats: (ca.data || []).map(r => ({ key: r.key, label: r.label, paletteIdx: r.palette_idx, builtIn: false })),
       };
     },
-
     async upsertPhrase(p) {
       if (!sb) return;
       const { error } = await sb.from("phrases").upsert(this._toRow(p));
       if (error) console.warn("[Supabase] upsertPhrase:", error.message);
     },
-
     async deletePhrase(id) {
       if (!sb) return;
       const { error } = await sb.from("phrases").delete().eq("id", id);
       if (error) console.warn("[Supabase] deletePhrase:", error.message);
     },
-
     async upsertCategory(c) {
       if (!sb) return;
-      const { error } = await sb.from("categories").upsert({
-        key: c.key, label: c.label, palette_idx: c.paletteIdx, built_in: false, sort_order: 100,
-      });
+      const { error } = await sb.from("categories").upsert({ key: c.key, label: c.label, palette_idx: c.paletteIdx, built_in: false, sort_order: 100 });
       if (error) console.warn("[Supabase] upsertCategory:", error.message);
     },
-
     async deleteCategory(key) {
       if (!sb) return;
       const { error } = await sb.from("categories").delete().eq("key", key);
@@ -328,9 +340,7 @@
     },
   };
 
-  /* ════════════════════════════════
-     カテゴリカラーパレット
-  ════════════════════════════════ */
+  /* ── カラーパレット ─────────────────────────────────────── */
   const PALETTE = [
     { border:"#1e3460", bg:"#e8edf8", text:"#1e3460" },
     { border:"#c8a951", bg:"#fef8e7", text:"#7a5c00" },
@@ -341,7 +351,6 @@
     { border:"#e65100", bg:"#fff3e0", text:"#bf360c" },
     { border:"#1565c0", bg:"#e3f2fd", text:"#0d47a1" },
   ];
-
   function palColor(idx) { return PALETTE[idx % PALETTE.length]; }
 
   const DEFAULT_CATEGORIES = [
@@ -352,38 +361,46 @@
     { key:"injury",     label:"🚨 インジャリー", paletteIdx:4, builtIn:true },
   ];
 
-  /* ════════════════════════════════
-     フレーズデータ
-  ════════════════════════════════ */
+  /* ── フレーズ初期データ ─────────────────────────────────── */
   const INITIAL_PHRASES = [
-    { id:1, phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに・どこで",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む・傷つく",note:"動詞"}]},
-    { id:2, phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力・マッサージ圧",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}]},
-    { id:3, phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", category:"treatment", example:"Take a deep breath and relax your hamstring for me.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞（命令形）"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息・呼吸",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞（命令形）"}]},
-    { id:4, phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕・投球腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}]},
-    { id:5, phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}]},
-    { id:6, phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞（命令形）"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間の前置詞句"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}]},
-    { id:7, phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある",note:"助動詞句"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター",note:"physician = 内科医"}]},
-    { id:8, phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか",note:"How is の短縮"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}]},
+    { id:1, phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", phrase_es:"¿Dónde le duele?", ipa_es:"/ˈdonde le ˈdwele/", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む",note:"動詞"}]},
+    { id:2, phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", phrase_es:"Avíseme si la presión es demasiada.", ipa_es:"/aˈβiseme si la preˈsjon es demaˈsjada/", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}]},
+    { id:3, phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", phrase_es:"Respira profundo y relájate.", ipa_es:"/resˈpira proˈfundo i reˈlaxate/", category:"treatment", example:"Take a deep breath and relax your hamstring.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞"}]},
+    { id:4, phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", phrase_es:"¿Cómo siente el brazo hoy?", ipa_es:"/ˈkomo ˈsjente el ˈbraθo oj/", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}]},
+    { id:5, phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", phrase_es:"¡Estás listo — ve a por ellos!", ipa_es:"/esˈtas ˈlisto ˈbe a por ˈeʎos/", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}]},
+    { id:6, phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", phrase_es:"Aplica hielo por 20 minutos después del juego.", ipa_es:"/aˈplika ˈjelo por ˈbeinte miˈnutos desˈpwes del ˈxweɣo/", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}]},
+    { id:7, phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", phrase_es:"Necesito referirle al médico del equipo.", ipa_es:"/neθeˈsito refeˈrirle al ˈmeðiko del eˈkipo/", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター"}]},
+    { id:8, phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", phrase_es:"En una escala del 1 al 10, ¿cuánto le duele?", ipa_es:"/en ˈuna esˈkala del ˈuno al ˈdjez ˈkwanto le ˈdwele/", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}]},
   ];
 
   /* ════════════════════════════════
-     Web Speech API
+     Web Speech API — 多言語対応版
   ════════════════════════════════ */
-  const PREFERRED_VOICES = ["Google US English","Samantha","Alex","Microsoft Aria Online (Natural) - English (United States)"];
+  const PREFERRED_VOICES_EN = ["Google US English","Samantha","Alex","Microsoft Aria Online (Natural) - English (United States)"];
+  const PREFERRED_VOICES_ES = ["Google español","Google español de Estados Unidos","Monica","Juan","Paulina","Diego"];
 
   function useSpeech() {
-    const [speakingId, setSpeakingId] = useState(null);
-    const [voiceName,  setVoiceName]  = useState("");
-    const voiceRef = useRef(null);
+    const [speakingId,  setSpeakingId]  = useState(null);
+    const [voiceName,   setVoiceName]   = useState("");
+    const [voiceNameEs, setVoiceNameEs] = useState("");
+    const voiceRef   = useRef(null);
+    const voiceRefEs = useRef(null);
 
     const loadVoice = useCallback(() => {
       const voices = window.speechSynthesis?.getVoices() || [];
       if (!voices.length) return;
-      let chosen = null;
-      for (const name of PREFERRED_VOICES) { chosen = voices.find(v => v.name === name); if (chosen) break; }
-      if (!chosen) chosen = voices.find(v => v.lang?.startsWith("en-US")) || voices.find(v => v.lang?.startsWith("en")) || voices[0];
-      voiceRef.current = chosen;
-      setVoiceName(chosen?.name || "");
+      // 英語ボイス
+      let en = null;
+      for (const n of PREFERRED_VOICES_EN) { en = voices.find(v => v.name === n); if (en) break; }
+      if (!en) en = voices.find(v => v.lang?.startsWith("en-US")) || voices.find(v => v.lang?.startsWith("en")) || voices[0];
+      voiceRef.current = en;
+      setVoiceName(en?.name || "");
+      // スペイン語ボイス
+      let es = null;
+      for (const n of PREFERRED_VOICES_ES) { es = voices.find(v => v.name === n); if (es) break; }
+      if (!es) es = voices.find(v => v.lang?.startsWith("es-")) || voices.find(v => v.lang?.startsWith("es"));
+      voiceRefEs.current = es;
+      setVoiceNameEs(es?.name || "");
     }, []);
 
     useEffect(() => {
@@ -393,20 +410,25 @@
       return () => window.speechSynthesis.cancel();
     }, [loadVoice]);
 
-    const speak = useCallback((text, id) => {
+    /* speak(text, id, lang) — lang: "en-US" | "es-ES" */
+    const speak = useCallback((text, id, lang = "en-US") => {
       if (!window.speechSynthesis) return;
       window.speechSynthesis.cancel();
       if (speakingId === id) { setSpeakingId(null); return; }
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = "en-US"; utt.rate = 0.82; utt.pitch = 1; utt.volume = 1;
-      if (voiceRef.current) utt.voice = voiceRef.current;
-      utt.onend = () => setSpeakingId(null);
+      const utt  = new SpeechSynthesisUtterance(text);
+      const isEs = lang.startsWith("es");
+      utt.lang   = lang;
+      utt.rate   = isEs ? 0.85 : 0.82;
+      utt.pitch  = 1; utt.volume = 1;
+      const voice = isEs ? voiceRefEs.current : voiceRef.current;
+      if (voice) utt.voice = voice;
+      utt.onend  = () => setSpeakingId(null);
       utt.onerror = () => setSpeakingId(null);
       setSpeakingId(id);
       window.speechSynthesis.speak(utt);
     }, [speakingId]);
 
-    return { speakingId, speak, voiceName };
+    return { speakingId, speak, voiceName, voiceNameEs };
   }
 
   function SpeakerIcon({ size=14, speaking }) {
@@ -420,15 +442,13 @@
   }
 
   /* ════════════════════════════════
-     IPA 自動生成（Free Dictionary API）
+     英語 IPA 自動生成
   ════════════════════════════════ */
-  async function fetchPhraseIpa(phrase) {
+  async function fetchEnIpa(phrase) {
     const tokens = phrase.match(/[a-zA-Z]+/g) || [];
     if (!tokens.length) return "";
-
     const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
     const ipaMap = {};
-
     await Promise.all(unique.slice(0, 18).map(async (word) => {
       try {
         const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
@@ -437,130 +457,201 @@
         if (!Array.isArray(d) || !d[0]) return;
         const entry = d[0];
         let ipa = entry.phonetic;
-        if (!ipa && entry.phonetics) {
-          const found = entry.phonetics.find(p => p.text && p.text.trim());
-          if (found) ipa = found.text;
-        }
+        if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
         if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
       } catch {}
     }));
-
     const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
-    if (!parts.length) return "";
-    return "/" + parts.join(" ") + "/";
+    return parts.length ? "/" + parts.join(" ") + "/" : "";
   }
 
   /* ════════════════════════════════
-     翻訳パネル
+     スペイン語 翻訳
+  ════════════════════════════════ */
+  async function fetchEsTranslation(enText) {
+    const res  = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(enText)}&langpair=en|es`);
+    const json = await res.json();
+    if (json.responseStatus === 200) return json.responseData.translatedText;
+    throw new Error("ES translation failed");
+  }
+
+  /* ════════════════════════════════
+     スペイン語 IPA（ベストエフォート）
+     スペイン語は発音が規則的なため、
+     英語より精度は低くなる場合があります
+  ════════════════════════════════ */
+  async function fetchEsIpa(phrase) {
+    const tokens = phrase.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi) || [];
+    if (!tokens.length) return "";
+    const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
+    const ipaMap = {};
+    await Promise.all(unique.slice(0, 12).map(async (word) => {
+      try {
+        const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/es/${word}`);
+        if (!r.ok) return;
+        const d = await r.json();
+        if (!Array.isArray(d) || !d[0]) return;
+        const entry = d[0];
+        let ipa = entry.phonetic;
+        if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
+        if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
+      } catch {}
+    }));
+    const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
+    return parts.length ? "/" + parts.join(" ") + "/" : "";
+  }
+
+  /* ════════════════════════════════
+     翻訳パネル（トリプルマスター版）
   ════════════════════════════════ */
   function TranslatePanel({ onSaveRequest, speakingId, speak }) {
-    const [jaText,    setJaText]    = useState("");
-    const [enText,    setEnText]    = useState("");
-    const [status,    setStatus]    = useState("idle");   // idle|loading|done|error
-    const [errMsg,    setErrMsg]    = useState("");
-    const [ipaText,   setIpaText]   = useState("");
-    const [ipaStatus, setIpaStatus] = useState("idle");   // idle|loading|done
+    const [jaText,      setJaText]      = useState("");
+    const [enText,      setEnText]      = useState("");
+    const [enStatus,    setEnStatus]    = useState("idle");   // idle|loading|done|error
+    const [enIpa,       setEnIpa]       = useState("");
+    const [enIpaStatus, setEnIpaStatus] = useState("idle");
+    const [esText,      setEsText]      = useState("");
+    const [esStatus,    setEsStatus]    = useState("idle");   // idle|loading|done|error
+    const [esIpa,       setEsIpa]       = useState("");
+    const [esIpaStatus, setEsIpaStatus] = useState("idle");
+    const [errMsg,      setErrMsg]      = useState("");
     const timerRef = useRef(null);
-    const SPEAK_ID = "translate-result";
 
-    /* 翻訳（日本語 → 英語） */
+    /* 日本語 → 英語 翻訳（700ms デバウンス） */
     useEffect(() => {
       const q = jaText.trim();
-      if (!q) { setEnText(""); setStatus("idle"); setIpaText(""); setIpaStatus("idle"); return; }
-      setStatus("loading");
-      setIpaText(""); setIpaStatus("idle");
+      if (!q) {
+        setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
+        setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
+        return;
+      }
+      setEnStatus("loading");
+      setEnIpa(""); setEnIpaStatus("idle");
+      setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(async () => {
         try {
           const res  = await fetch(`https://api.mymemory.translated.net/get?q=${encodeURIComponent(q)}&langpair=ja|en`);
           const json = await res.json();
-          if (json.responseStatus === 200) {
-            setEnText(json.responseData.translatedText);
-            setStatus("done");
-          } else {
-            setErrMsg("翻訳に失敗しました。"); setStatus("error");
-          }
-        } catch {
-          setErrMsg("ネットワークに接続できません。"); setStatus("error");
-        }
+          if (json.responseStatus === 200) { setEnText(json.responseData.translatedText); setEnStatus("done"); }
+          else { setErrMsg("翻訳に失敗しました。"); setEnStatus("error"); }
+        } catch { setErrMsg("ネットワークに接続できません。"); setEnStatus("error"); }
       }, 700);
       return () => clearTimeout(timerRef.current);
     }, [jaText]);
 
-    /* 翻訳完了後に IPA を自動生成 */
+    /* 英語完了 → EN IPA + ES 翻訳 を並列実行 */
     useEffect(() => {
-      if (status !== "done" || !enText) return;
-      setIpaStatus("loading");
-      fetchPhraseIpa(enText).then(ipa => {
-        setIpaText(ipa);
-        setIpaStatus("done");
-      }).catch(() => setIpaStatus("done"));
-    }, [status, enText]);
+      if (enStatus !== "done" || !enText) return;
+      // EN IPA
+      setEnIpaStatus("loading");
+      fetchEnIpa(enText).then(ipa => { setEnIpa(ipa); setEnIpaStatus("done"); }).catch(() => setEnIpaStatus("done"));
+      // ES 翻訳
+      if (HAS_ES) {
+        setEsStatus("loading");
+        fetchEsTranslation(enText).then(es => { setEsText(es); setEsStatus("done"); }).catch(() => setEsStatus("error"));
+      }
+    }, [enStatus, enText]);
+
+    /* ES 翻訳完了 → ES IPA */
+    useEffect(() => {
+      if (esStatus !== "done" || !esText) return;
+      setEsIpaStatus("loading");
+      fetchEsIpa(esText).then(ipa => { setEsIpa(ipa); setEsIpaStatus("done"); }).catch(() => setEsIpaStatus("done"));
+    }, [esStatus, esText]);
 
     const clear = () => {
-      setJaText(""); setEnText(""); setStatus("idle");
-      setIpaText(""); setIpaStatus("idle");
+      setJaText(""); setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
+      setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
       window.speechSynthesis?.cancel();
     };
+
+    const canSave = enStatus === "done";
 
     return (
       <div className="translate-panel">
         <div className="translate-panel-header">
           <div className="translate-panel-header-icon">🌐</div>
-          <span className="translate-panel-title">日本語 → 英語 リアルタイム翻訳</span>
-          <span className="translate-panel-subtitle">翻訳 → 発音記号 → 読み上げを自動生成</span>
+          <span className="translate-panel-title">日本語 → 英語・スペイン語 自動翻訳</span>
+          <span className="translate-panel-subtitle">🇯🇵→🇺🇸→🇪🇸 同時生成</span>
         </div>
         <div className="translate-body">
+          {/* ── 日本語入力 ── */}
           <div className="translate-src">
-            <span className="translate-lang-label">日本語</span>
+            <span className="translate-lang-label">🇯🇵 日本語</span>
             <textarea
               className="translate-textarea"
               placeholder={"日本語で入力してください\n例：どこが一番痛みますか？\n　　肩の力を抜いてください\n　　試合後は20分アイシングしてね"}
               value={jaText}
               onChange={e => setJaText(e.target.value)}
-              rows={5}
+              rows={6}
             />
             <div className="translate-src-footer">
               {jaText && <button className="translate-clear" onClick={clear}>✕ クリア</button>}
               <span className="char-count" style={{marginLeft:"auto"}}>{jaText.length} 字</span>
             </div>
           </div>
+
+          {/* ── 区切り ── */}
           <div className="translate-divider">
             <div className="translate-arrow-icon">→</div>
           </div>
+
+          {/* ── 翻訳結果: EN + ES ── */}
           <div className="translate-dst">
-            <span className="translate-lang-label">English</span>
-            {status === "idle"    && <p className="translate-result-en placeholder">左に日本語を入力すると英語が表示されます</p>}
-            {status === "loading" && <p className="translate-result-en loading"><span className="spinner"/>翻訳中...</p>}
-            {status === "done"    && <p className="translate-result-en">{enText}</p>}
-            {status === "error"   && <p className="translate-result-en error">⚠ {errMsg}</p>}
+            {/* 🇺🇸 English */}
+            {HAS_EN && (
+              <div className="lang-block">
+                <span className="lang-flag-label en">🇺🇸 English</span>
+                {enStatus === "idle"    && <p className="translate-result-text placeholder">日本語を入力すると英語が表示されます</p>}
+                {enStatus === "loading" && <p className="translate-result-text loading"><span className="spinner"/>翻訳中...</p>}
+                {enStatus === "done"    && <p className="translate-result-text">{enText}</p>}
+                {enStatus === "error"   && <p className="translate-result-text error">⚠ {errMsg}</p>}
+                <div className="translate-ipa-row">
+                  {enIpaStatus === "loading" && <span className="translate-ipa-loading"><span className="spinner-sm"/>IPA 生成中...</span>}
+                  {enIpaStatus === "done" && enIpa && <span className="translate-ipa-text">{enIpa}</span>}
+                </div>
+                {enStatus === "done" && (
+                  <div className="lang-speak-row">
+                    <button className={`speak-big-btn${speakingId === "tr-en" ? " speaking" : ""}`}
+                      onClick={() => speak(enText, "tr-en", "en-US")}>
+                      <SpeakerIcon size={14} speaking={speakingId === "tr-en"}/>
+                      {speakingId === "tr-en" ? "再生中..." : "🇺🇸 読み上げ"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* IPA 表示 */}
-            <div className="translate-ipa-row">
-              {ipaStatus === "loading" && (
-                <span className="translate-ipa-loading"><span className="spinner-sm"/>発音記号を生成中...</span>
-              )}
-              {ipaStatus === "done" && ipaText && (
-                <span className="translate-ipa-text">{ipaText}</span>
-              )}
-            </div>
+            {/* 🇪🇸 Español */}
+            {HAS_ES && (
+              <div className="lang-block lang-block-es">
+                <span className="lang-flag-label es">🇪🇸 Español</span>
+                {esStatus === "idle"    && <p className="translate-result-text placeholder">英語翻訳後に自動でスペイン語を生成します</p>}
+                {esStatus === "loading" && <p className="translate-result-text loading"><span className="spinner"/>スペイン語に翻訳中...</p>}
+                {esStatus === "done"    && <p className="translate-result-text es-text">{esText}</p>}
+                {esStatus === "error"   && <p className="translate-result-text error">⚠ スペイン語翻訳に失敗しました</p>}
+                <div className="translate-ipa-row">
+                  {esIpaStatus === "loading" && <span className="translate-ipa-loading"><span className="spinner-sm"/>IPA 生成中...</span>}
+                  {esIpaStatus === "done" && esIpa && <span className="translate-ipa-text es">{esIpa}</span>}
+                </div>
+                {esStatus === "done" && (
+                  <div className="lang-speak-row">
+                    <button className={`speak-big-btn es-btn${speakingId === "tr-es" ? " speaking" : ""}`}
+                      onClick={() => speak(esText, "tr-es", "es-ES")}>
+                      <SpeakerIcon size={14} speaking={speakingId === "tr-es"}/>
+                      {speakingId === "tr-es" ? "再生中..." : "🇪🇸 読み上げ"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="translate-dst-footer">
-              <button
-                className={`speak-big-btn${speakingId === SPEAK_ID ? " speaking" : ""}`}
-                disabled={status !== "done"}
-                onClick={() => speak(enText, SPEAK_ID)}
-              >
-                <SpeakerIcon size={15} speaking={speakingId === SPEAK_ID}/>
-                {speakingId === SPEAK_ID ? "再生中..." : "読み上げ"}
-              </button>
-              <button
-                className="save-translate-btn"
-                disabled={status !== "done"}
-                onClick={() => onSaveRequest({ ja: jaText.trim(), en: enText, ipa: ipaText })}
-                title="フレーズ帳に保存"
-              >
-                ＋ フレーズ帳に保存
+            {/* 保存ボタン */}
+            <div className="translate-save-row">
+              <button className="save-translate-btn" disabled={!canSave}
+                onClick={() => onSaveRequest({ ja: jaText.trim(), en: enText, ipa: enIpa, es: esText, ipa_es: esIpa })}>
+                ＋ フレーズ帳に保存（EN + ES）
               </button>
             </div>
           </div>
@@ -583,17 +674,13 @@
       e.preventDefault();
       const name = (emoji ? emoji + " " : "") + label.trim();
       if (!name) return;
-      const key = "custom-" + Date.now();
-      onAdd({ key, label: name, paletteIdx, builtIn: false });
+      onAdd({ key: "custom-" + Date.now(), label: name, paletteIdx, builtIn: false });
       onClose();
     };
     return (
       <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
         <div className="modal modal-sm">
-          <div className="modal-header">
-            <h2>グループを追加</h2>
-            <button className="modal-close" onClick={onClose}>✕</button>
-          </div>
+          <div className="modal-header"><h2>グループを追加</h2><button className="modal-close" onClick={onClose}>✕</button></div>
           <form onSubmit={submit}>
             <div className="modal-body">
               <div className="form-group">
@@ -608,13 +695,8 @@
                 <label>カラー</label>
                 <div className="color-swatch-row">
                   {PALETTE.map((p, i) => (
-                    <div
-                      key={i}
-                      className={`color-swatch${paletteIdx === i ? " selected" : ""}`}
-                      style={{ background: p.border }}
-                      onClick={() => setPaletteIdx(i)}
-                      title={`カラー ${i+1}`}
-                    />
+                    <div key={i} className={`color-swatch${paletteIdx === i ? " selected" : ""}`}
+                      style={{ background: p.border }} onClick={() => setPaletteIdx(i)} title={`カラー ${i+1}`} />
                   ))}
                 </div>
               </div>
@@ -640,7 +722,7 @@
             const wid = `wc-${phraseId}-${i}`;
             return (
               <div key={i} className={`word-chip${speakingId===wid?" speaking":""}`}
-                onClick={e => { e.stopPropagation(); speak(w.w, wid); }} title="タップして発音確認">
+                onClick={e => { e.stopPropagation(); speak(w.w, wid, "en-US"); }} title="タップして発音確認">
                 <span className="wc-en">{w.w}</span>
                 {w.r && <span className="wc-read">{w.r}</span>}
                 <span className="wc-ja">{w.m}</span>
@@ -657,27 +739,19 @@
      フレーズ追加・編集モーダル
   ════════════════════════════════ */
   function PhraseModal({ phrase, onSave, onClose, categories }) {
-    const blank = { phrase:"", ipa:"", reading:"", meaning:"", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] };
-
-    // ★ バグ修正: tags が配列かどうかを確認してから処理
+    const blank = { phrase:"", ipa:"", reading:"", meaning:"", phrase_es:"", ipa_es:"", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] };
     const initForm = () => {
       if (!phrase) return blank;
       const tags = Array.isArray(phrase.tags) ? phrase.tags.join(", ") : (phrase.tags || "");
-      return { ...phrase, tags };
+      return { ...blank, ...phrase, tags };
     };
-
     const [form, setForm] = useState(initForm);
     const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
     const submit = (e) => {
       e.preventDefault();
       if (!form.phrase.trim()) return;
-      onSave({
-        ...form,
-        tags: typeof form.tags === "string"
-          ? form.tags.split(",").map(t => t.trim()).filter(Boolean)
-          : form.tags,
-      });
+      onSave({ ...form, tags: typeof form.tags === "string" ? form.tags.split(",").map(t => t.trim()).filter(Boolean) : form.tags });
     };
 
     return (
@@ -689,6 +763,8 @@
           </div>
           <form onSubmit={submit}>
             <div className="modal-body">
+              {/* 🇺🇸 English */}
+              <div className="form-section-label en">🇺🇸 English</div>
               <div className="form-group">
                 <label>英語フレーズ *</label>
                 <input className="form-control" value={form.phrase} onChange={e => set("phrase", e.target.value)} placeholder="e.g. Where does it hurt?" required />
@@ -701,6 +777,24 @@
                 <label>読み方（カタカナ）</label>
                 <input className="form-control" value={form.reading} onChange={e => set("reading", e.target.value)} placeholder="e.g. ウェア ダズ イット ハート？" />
               </div>
+
+              {/* 🇪🇸 Español */}
+              {HAS_ES && (
+                <>
+                  <div className="form-section-label es">🇪🇸 Español</div>
+                  <div className="form-group">
+                    <label>スペイン語フレーズ</label>
+                    <input className="form-control" value={form.phrase_es||""} onChange={e => set("phrase_es", e.target.value)} placeholder="e.g. ¿Dónde le duele?" />
+                  </div>
+                  <div className="form-group">
+                    <label>スペイン語 IPA</label>
+                    <input className="form-control" value={form.ipa_es||""} onChange={e => set("ipa_es", e.target.value)} placeholder="e.g. /ˈdonde le ˈdwele/" style={{fontFamily:"Georgia,serif"}} />
+                  </div>
+                </>
+              )}
+
+              {/* 共通フィールド */}
+              <div className="form-section-label en" style={{marginTop:16}}>🇯🇵 共通情報</div>
               <div className="form-group">
                 <label>意味・日本語訳</label>
                 <input className="form-control" value={form.meaning} onChange={e => set("meaning", e.target.value)} placeholder="e.g. どこが痛みますか？" />
@@ -743,15 +837,39 @@
           <div className="modal-header"><h2>フレーズ詳細</h2><button className="modal-close" onClick={onClose}>✕</button></div>
           <div className="modal-body">
             <span className="card-badge" style={{background:col.bg,color:col.text,marginBottom:10,display:"inline-block"}}>{cat?.label || phrase.category}</span>
-            <p className="detail-phrase">{phrase.phrase}</p>
-            {phrase.ipa     && <p className="detail-ipa">{phrase.ipa}</p>}
-            {phrase.reading && <p className="detail-reading">{phrase.reading}</p>}
-            <div className="detail-speak-row">
-              <button className={`detail-speak-btn${speakingId===sid?" speaking":""}`} onClick={() => speak(phrase.phrase, sid)}>
-                <SpeakerIcon size={15} speaking={speakingId===sid}/>
-                {speakingId===sid ? "再生中..." : "フレーズを読み上げ"}
-              </button>
-            </div>
+
+            {/* 🇺🇸 English */}
+            {HAS_EN && (
+              <div style={{marginBottom:14}}>
+                <p className="detail-label" style={{color:"#1e3460"}}>🇺🇸 English</p>
+                <p className="detail-phrase">{phrase.phrase}</p>
+                {phrase.ipa     && <p className="detail-ipa">{phrase.ipa}</p>}
+                {phrase.reading && <p className="detail-reading">{phrase.reading}</p>}
+                <div className="detail-speak-row">
+                  <button className={`detail-speak-btn${speakingId===sid?" speaking":""}`} onClick={() => speak(phrase.phrase, sid, "en-US")}>
+                    <SpeakerIcon size={15} speaking={speakingId===sid}/>
+                    {speakingId===sid ? "再生中..." : "🇺🇸 読み上げ"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 🇪🇸 Español */}
+            {HAS_ES && phrase.phrase_es && (
+              <div className="detail-es-block" style={{marginBottom:14}}>
+                <p className="detail-label" style={{color:"var(--es-accent)"}}>🇪🇸 Español</p>
+                <p className="detail-es-phrase">{phrase.phrase_es}</p>
+                {phrase.ipa_es && <p className="detail-es-ipa">{phrase.ipa_es}</p>}
+                <div className="detail-speak-row" style={{marginBottom:0,marginTop:8}}>
+                  <button className={`detail-speak-btn es-btn${speakingId===`${sid}-es`?" speaking":""}`}
+                    onClick={() => speak(phrase.phrase_es, `${sid}-es`, "es-ES")}>
+                    <SpeakerIcon size={15} speaking={speakingId===`${sid}-es`}/>
+                    {speakingId===`${sid}-es` ? "再生中..." : "🇪🇸 読み上げ"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {phrase.meaning && <div className="detail-section"><p className="detail-label">日本語訳</p><p className="detail-value">{phrase.meaning}</p></div>}
             {phrase.example && <div className="detail-section"><p className="detail-label">例文</p><p className="detail-example">"{phrase.example}"</p></div>}
             {(phrase.words||[]).length > 0 && (
@@ -767,7 +885,7 @@
                           <td><span className="wt-word">{w.w}</span>{w.r && <span className="wt-read">{w.r}</span>}</td>
                           <td><span className="wt-ja">{w.m}</span></td>
                           <td>{w.note && <span className="wt-note">{w.note}</span>}</td>
-                          <td><button className={`wt-speak${speakingId===wid?" speaking":""}`} onClick={() => speak(w.w, wid)}><SpeakerIcon size={13} speaking={speakingId===wid}/></button></td>
+                          <td><button className={`wt-speak${speakingId===wid?" speaking":""}`} onClick={() => speak(w.w, wid, "en-US")}><SpeakerIcon size={13} speaking={speakingId===wid}/></button></td>
                         </tr>
                       );
                     })}
@@ -793,53 +911,39 @@
      App
   ════════════════════════════════ */
   function App() {
-    /* ── localStorage から復元（初回のみ） ── */
     const [phrases, setPhrases] = useState(() => {
-      try {
-        const s = localStorage.getItem("mlb-phrases");
-        return s ? JSON.parse(s) : INITIAL_PHRASES;
-      } catch { return INITIAL_PHRASES; }
+      try { const s = localStorage.getItem("mlb-phrases"); return s ? JSON.parse(s) : INITIAL_PHRASES; } catch { return INITIAL_PHRASES; }
     });
     const [categories, setCategories] = useState(() => {
-      try {
-        const s = localStorage.getItem("mlb-categories");
-        return s ? JSON.parse(s) : DEFAULT_CATEGORIES;
-      } catch { return DEFAULT_CATEGORIES; }
+      try { const s = localStorage.getItem("mlb-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
     });
 
-    /* ── localStorage に変更を自動保存 ── */
     useEffect(() => { localStorage.setItem("mlb-phrases",    JSON.stringify(phrases));    }, [phrases]);
     useEffect(() => { localStorage.setItem("mlb-categories", JSON.stringify(categories)); }, [categories]);
 
-    /* ── 起動時: Supabase からデータ取得 → localStorage と同期 ── */
-    const [syncStatus, setSyncStatus] = useState(db.ready ? "syncing" : "local"); // local|syncing|ok|error
+    /* Supabase 起動時同期 */
+    const [syncStatus, setSyncStatus] = useState(db.ready ? "syncing" : "local");
     useEffect(() => {
       if (!db.ready) return;
       db.loadAll().then(result => {
         if (!result) { setSyncStatus("error"); return; }
         const { phrases: sbPhrases, customCats } = result;
-
         if (sbPhrases.length === 0) {
-          /* Supabase が空 → ローカルデータを初回アップロード */
           const local = (() => { try { return JSON.parse(localStorage.getItem("mlb-phrases")||"[]"); } catch { return []; } })();
           if (local.length > 0) local.forEach(p => db.upsertPhrase(p));
         } else {
-          /* Supabase にデータあり → ローカルを上書き（Supabase が正） */
           setPhrases(sbPhrases);
         }
-
         if (customCats.length > 0) {
           setCategories(prev => {
             const builtins = prev.filter(c => c.builtIn);
-            const merged   = [...builtins, ...customCats.filter(c => !builtins.find(b => b.key === c.key))];
-            return merged;
+            return [...builtins, ...customCats.filter(c => !builtins.find(b => b.key === c.key))];
           });
         }
         setSyncStatus("ok");
       }).catch(() => setSyncStatus("error"));
     }, []); // eslint-disable-line
 
-    /* ── オフライン検知 ── */
     const [isOffline, setIsOffline] = useState(!navigator.onLine);
     useEffect(() => {
       const on  = () => setIsOffline(false);
@@ -849,16 +953,16 @@
       return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
     }, []);
 
-    const [query,          setQuery]          = useState("");
-    const [activeCategory, setCategory]       = useState("all");
-    const [showAdd,        setShowAdd]        = useState(false);
-    const [addPreset,      setAddPreset]      = useState(null);
-    const [editTarget,     setEditTarget]     = useState(null);
-    const [detailTarget,   setDetail]         = useState(null);
-    const [openWords,      setOpenWords]      = useState({});
-    const [showAddCat,     setShowAddCat]     = useState(false);
+    const [query,          setQuery]      = useState("");
+    const [activeCategory, setCategory]   = useState("all");
+    const [showAdd,        setShowAdd]    = useState(false);
+    const [addPreset,      setAddPreset]  = useState(null);
+    const [editTarget,     setEditTarget] = useState(null);
+    const [detailTarget,   setDetail]     = useState(null);
+    const [openWords,      setOpenWords]  = useState({});
+    const [showAddCat,     setShowAddCat] = useState(false);
 
-    const { speakingId, speak, voiceName } = useSpeech();
+    const { speakingId, speak, voiceName, voiceNameEs } = useSpeech();
 
     const allCategories = useMemo(() => [{ key:"all", label:"すべて", builtIn:true }, ...categories], [categories]);
 
@@ -866,20 +970,18 @@
       const q = query.toLowerCase();
       return phrases.filter(p => {
         const catOk    = activeCategory === "all" || p.category === activeCategory;
-        const searchOk = !q || [p.phrase, p.meaning, p.reading, p.ipa||"", ...(p.tags||[])].some(s => s.toLowerCase().includes(q));
+        const searchOk = !q || [p.phrase, p.meaning, p.reading, p.ipa||"", p.phrase_es||"", ...(p.tags||[])].some(s => s.toLowerCase().includes(q));
         return catOk && searchOk;
       });
     }, [phrases, query, activeCategory]);
 
     const savePhrase = (data) => {
       const tags       = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
-      const normalized = { ...data, tags, words: data.words || [] };
+      const normalized = { ...data, tags, words: data.words || [], phrase_es: data.phrase_es || "", ipa_es: data.ipa_es || "" };
       if (normalized.id) {
-        /* 既存フレーズを更新 */
         setPhrases(ps => ps.map(p => p.id === normalized.id ? normalized : p));
         db.upsertPhrase(normalized);
       } else {
-        /* 新規フレーズ: UUID を生成 */
         const newId  = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
         const newOne = { ...normalized, id: newId, starred: false };
         setPhrases(ps => [...ps, newOne]);
@@ -888,39 +990,20 @@
       setShowAdd(false); setEditTarget(null); setAddPreset(null);
     };
 
-    const deletePhrase = (id) => {
-      setPhrases(ps => ps.filter(p => p.id !== id));
-      db.deletePhrase(id);
-    };
-
-    const toggleStar = (id, e) => {
+    const deletePhrase  = (id) => { setPhrases(ps => ps.filter(p => p.id !== id)); db.deletePhrase(id); };
+    const toggleStar    = (id, e) => {
       e.stopPropagation();
-      setPhrases(ps => ps.map(p => {
-        if (p.id !== id) return p;
-        const updated = { ...p, starred: !p.starred };
-        db.upsertPhrase(updated);
-        return updated;
-      }));
+      setPhrases(ps => ps.map(p => { if (p.id !== id) return p; const u = {...p, starred: !p.starred}; db.upsertPhrase(u); return u; }));
     };
+    const toggleWords   = (id, e) => { e.stopPropagation(); setOpenWords(o => ({...o, [id]:!o[id]})); };
+    const addCategory   = (cat) => { setCategories(cs => [...cs, cat]); db.upsertCategory(cat); };
+    const deleteCategory = (key) => { setCategories(cs => cs.filter(c => c.key !== key)); db.deleteCategory(key); if (activeCategory === key) setCategory("all"); };
 
-    const toggleWords = (id, e) => { e.stopPropagation(); setOpenWords(o => ({...o, [id]:!o[id]})); };
-
-    const addCategory = (cat) => {
-      setCategories(cs => [...cs, cat]);
-      db.upsertCategory(cat);
-    };
-    const deleteCategory = (key) => {
-      setCategories(cs => cs.filter(c => c.key !== key));
-      db.deleteCategory(key);
-      if (activeCategory === key) setCategory("all");
-    };
-
-    const handleSaveRequest = ({ ja, en, ipa }) => {
-      setAddPreset({ phrase: en, meaning: ja, ipa: ipa || "", reading:"", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] });
+    const handleSaveRequest = ({ ja, en, ipa, es, ipa_es }) => {
+      setAddPreset({ phrase: en, meaning: ja, ipa: ipa || "", reading:"", phrase_es: es || "", ipa_es: ipa_es || "", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] });
       setShowAdd(true);
     };
 
-    /* ── Supabase 同期ステータスバッジ ── */
     const SyncBadge = () => {
       if (!db.ready) return <span style={{fontSize:".68rem",color:"var(--gold-light)",opacity:.7,marginLeft:8}}>💾 ローカル保存</span>;
       if (syncStatus === "syncing") return <span style={{fontSize:".68rem",color:"var(--gold-light)",opacity:.7,marginLeft:8}}>⏳ 同期中...</span>;
@@ -931,20 +1014,18 @@
 
     return (
       <>
-        {isOffline && (
-          <div className="offline-banner">
-            📵 オフライン中 — 保存済みフレーズは閲覧・読み上げ可能です
-          </div>
-        )}
+        {isOffline && <div className="offline-banner">📵 オフライン中 — 保存済みフレーズは閲覧・読み上げ可能です</div>}
+
         <header className="header">
           <div className="header-inner">
             <div className="header-top">
               <div className="header-icon">⚾</div>
-              <h1>MLB Phrase Book</h1>
+              <h1>MLB Phrase Book <span className="triple-badge">TRIPLE</span></h1>
             </div>
-            <p className="header-sub">Massage Therapist Edition — クラブハウス・治療現場の英語フレーズ集</p>
-            <p className="voice-indicator" style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:4}}>
-              {voiceName && <span>🔊 {voiceName}</span>}
+            <p className="header-sub">Massage Therapist Edition — 🇯🇵 🇺🇸 🇪🇸 トリプルマスター版</p>
+            <p className="voice-indicator" style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6}}>
+              {voiceName   && <span>🇺🇸 {voiceName}</span>}
+              {voiceNameEs && <span>🇪🇸 {voiceNameEs}</span>}
               <SyncBadge />
             </p>
           </div>
@@ -956,23 +1037,19 @@
           <div className="toolbar">
             <div className="search-wrap">
               <span className="search-icon">🔍</span>
-              <input className="search-input" placeholder="フレーズ・意味・IPA・タグで検索..." value={query} onChange={e => setQuery(e.target.value)} />
+              <input className="search-input" placeholder="英語・スペイン語・意味・タグで検索..." value={query} onChange={e => setQuery(e.target.value)} />
             </div>
             <button className="add-btn" onClick={() => { setAddPreset(null); setShowAdd(true); }}>＋ フレーズ追加</button>
           </div>
 
-          {/* グループフィルター */}
           <div className="filter-row">
             {allCategories.map(c => {
-              const col = c.key === "all" ? null : palColor(c.paletteIdx ?? 0);
+              const col      = c.key === "all" ? null : palColor(c.paletteIdx ?? 0);
               const isActive = activeCategory === c.key;
               return (
-                <button
-                  key={c.key}
-                  className={`filter-btn${isActive ? " active" : ""}`}
+                <button key={c.key} className={`filter-btn${isActive ? " active" : ""}`}
                   style={isActive && col ? { background: col.border, borderColor: col.border, color: "#fff" } : {}}
-                  onClick={() => setCategory(c.key)}
-                >
+                  onClick={() => setCategory(c.key)}>
                   {c.label}
                   {!c.builtIn && (
                     <span className="del-cat" onClick={e => { e.stopPropagation(); deleteCategory(c.key); }} title="グループを削除">✕</span>
@@ -990,9 +1067,10 @@
           ) : (
             <div className="card-grid">
               {filtered.map(p => {
-                const sid = `card-${p.id}`;
-                const cat = categories.find(c => c.key === p.category);
-                const col = palColor(cat?.paletteIdx ?? 0);
+                const sid      = `card-${p.id}`;
+                const sidEs    = `card-${p.id}-es`;
+                const cat      = categories.find(c => c.key === p.category);
+                const col      = palColor(cat?.paletteIdx ?? 0);
                 const wordsOpen = !!openWords[p.id];
                 return (
                   <div key={p.id} className="card" style={{ borderTopColor: col.border }} onClick={() => setDetail(p)}>
@@ -1002,9 +1080,17 @@
                       <button className="icon-btn delete" title="削除" onClick={e => { e.stopPropagation(); deletePhrase(p.id); }}>🗑</button>
                     </div>
                     <span className="card-badge" style={{ background: col.bg, color: col.text }}>{cat?.label || p.category}</span>
-                    <p className="card-phrase">{p.phrase}</p>
-                    {p.ipa     && <p className="card-ipa">{p.ipa}</p>}
-                    {p.reading && <p className="card-reading">{p.reading}</p>}
+                    {/* 🇺🇸 English */}
+                    {HAS_EN && <p className="card-phrase">{p.phrase}</p>}
+                    {HAS_EN && p.ipa     && <p className="card-ipa">{p.ipa}</p>}
+                    {HAS_EN && p.reading && <p className="card-reading">{p.reading}</p>}
+                    {/* 🇪🇸 Español */}
+                    {HAS_ES && p.phrase_es && (
+                      <div className="card-es-block">
+                        <p className="card-phrase-es">🇪🇸 {p.phrase_es}</p>
+                        {p.ipa_es && <p className="card-ipa-es">{p.ipa_es}</p>}
+                      </div>
+                    )}
                     {p.meaning && <p className="card-meaning">{p.meaning}</p>}
                     {(p.tags||[]).length > 0 && (
                       <div className="card-tags">
@@ -1014,13 +1100,21 @@
                     )}
                     {wordsOpen && <WordChips words={p.words} speakingId={speakingId} speak={speak} phraseId={p.id}/>}
                     <div className="card-footer" onClick={e => e.stopPropagation()}>
-                      <button className={`speak-btn${speakingId===sid?" speaking":""}`} onClick={() => speak(p.phrase, sid)}>
-                        <SpeakerIcon speaking={speakingId===sid}/>
-                        {speakingId===sid ? "再生中..." : "読み上げ"}
-                      </button>
+                      <div className="card-speak-group">
+                        {HAS_EN && (
+                          <button className={`speak-btn${speakingId===sid?" speaking":""}`} onClick={() => speak(p.phrase, sid, "en-US")}>
+                            <SpeakerIcon speaking={speakingId===sid}/> EN
+                          </button>
+                        )}
+                        {HAS_ES && p.phrase_es && (
+                          <button className={`speak-btn es${speakingId===sidEs?" speaking":""}`} onClick={() => speak(p.phrase_es, sidEs, "es-ES")}>
+                            <SpeakerIcon speaking={speakingId===sidEs}/> ES
+                          </button>
+                        )}
+                      </div>
                       {(p.words||[]).length > 0 && (
                         <button className={`word-toggle-btn${wordsOpen?" open":""}`} onClick={e => toggleWords(p.id, e)}>
-                          📖 単語解説 {wordsOpen?"▲":"▼"}
+                          📖 {wordsOpen?"▲":"▼"}
                         </button>
                       )}
                     </div>
@@ -1031,45 +1125,10 @@
           )}
         </main>
 
-        {/* グループ追加モーダル */}
-        {showAddCat && (
-          <AddCategoryModal
-            onAdd={addCategory}
-            onClose={() => setShowAddCat(false)}
-            usedIdxs={categories.map(c => c.paletteIdx)}
-          />
-        )}
-
-        {/* フレーズ追加・編集モーダル */}
-        {showAdd && (
-          <PhraseModal
-            phrase={addPreset}
-            onSave={savePhrase}
-            onClose={() => { setShowAdd(false); setAddPreset(null); }}
-            categories={categories}
-          />
-        )}
-        {editTarget && (
-          <PhraseModal
-            phrase={editTarget}
-            onSave={savePhrase}
-            onClose={() => setEditTarget(null)}
-            categories={categories}
-          />
-        )}
-
-        {/* 詳細モーダル */}
-        {detailTarget && (
-          <DetailModal
-            phrase={detailTarget}
-            onClose={() => setDetail(null)}
-            onEdit={p => setEditTarget(p)}
-            onDelete={id => deletePhrase(id)}
-            speakingId={speakingId}
-            speak={speak}
-            categories={categories}
-          />
-        )}
+        {showAddCat && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCat(false)} usedIdxs={categories.map(c => c.paletteIdx)} />}
+        {showAdd && <PhraseModal phrase={addPreset} onSave={savePhrase} onClose={() => { setShowAdd(false); setAddPreset(null); }} categories={categories} />}
+        {editTarget && <PhraseModal phrase={editTarget} onSave={savePhrase} onClose={() => setEditTarget(null)} categories={categories} />}
+        {detailTarget && <DetailModal phrase={detailTarget} onClose={() => setDetail(null)} onEdit={p => setEditTarget(p)} onDelete={id => deletePhrase(id)} speakingId={speakingId} speak={speak} categories={categories} />}
       </>
     );
   }
