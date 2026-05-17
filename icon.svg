@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 背景 -->
+  <rect width="512" height="512" rx="96" fill="#0a1628"/>
+  <!-- 野球ボール -->
+  <circle cx="256" cy="195" r="108" fill="#f5f5f5"/>
+  <!-- ボールのステッチ（赤） -->
+  <path d="M210 110 Q185 195 210 280" fill="none" stroke="#c8102e" stroke-width="9" stroke-linecap="round"/>
+  <path d="M302 110 Q327 195 302 280" fill="none" stroke="#c8102e" stroke-width="9" stroke-linecap="round"/>
+  <path d="M210 140 Q230 150 250 143" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M210 170 Q230 180 250 173" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M210 200 Q230 210 250 203" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M210 230 Q230 240 250 233" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M302 140 Q282 150 262 143" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M302 170 Q282 180 262 173" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M302 200 Q282 210 262 203" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <path d="M302 230 Q282 240 262 233" fill="none" stroke="#c8102e" stroke-width="6" stroke-linecap="round"/>
+  <!-- テキスト MLB -->
+  <text x="256" y="378" text-anchor="middle" font-family="Arial Black, Arial" font-weight="900" font-size="88" fill="#c8a951" letter-spacing="2">MLB</text>
+  <!-- サブテキスト -->
+  <text x="256" y="440" text-anchor="middle" font-family="Arial, sans-serif" font-weight="600" font-size="38" fill="#9aa5b4" letter-spacing="1">Phrase Book</text>
+</svg>
