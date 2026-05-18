@@ -660,45 +660,54 @@
     return fetchWordBreakdown(esPhrase, "es", "ja", /[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi);
   }
 
-  /* ════════════════════════════════
-     翻訳パネル（トリプルマスター版）
-  ════════════════════════════════ */
+  /* ════════════════════════════════════════════════════════════
+     翻訳パネル（クリーン再設計版）
+     ─────────────────────────────────────────────────────────
+     【設計方針】
+     ・表示用（JA→EN→ES テキスト）は自動翻訳で随時更新。
+     ・IPA・単語解説は「保存ボタンを押した瞬間」に1本の
+       async 関数で順番に取得する。事前生成は一切しない。
+     ・各ステップは必ず try/catch で囲み、失敗時は
+       その場でフォールバック値を確定させてから次へ進む。
+     ・全データが揃ったら onSaveRequest を1回だけ呼ぶ。
+  ════════════════════════════════════════════════════════════ */
   function TranslatePanel({ onSaveRequest, speakingId, speak }) {
-    const [jaText,      setJaText]      = useState("");
-    const [enText,      setEnText]      = useState("");
-    const [enStatus,    setEnStatus]    = useState("idle");   // idle|loading|done|error
-    const [enIpa,        setEnIpa]        = useState("");
-    const [enIpaStatus,  setEnIpaStatus]  = useState("idle");
-    const [enWords,      setEnWords]      = useState([]);      // 英語 単語解説
-    const [enWordsStatus,setEnWordsStatus]= useState("idle");
-    const [esText,       setEsText]       = useState("");
-    const [esStatus,     setEsStatus]     = useState("idle");  // idle|loading|done|error
-    const [esIpa,        setEsIpa]        = useState("");
-    const [esIpaStatus,  setEsIpaStatus]  = useState("idle");
-    const [esWords,      setEsWords]      = useState([]);      // スペイン語 単語解説
-    const [esWordsStatus,setEsWordsStatus]= useState("idle");
-    const [errMsg,       setErrMsg]       = useState("");
+    // ── 表示用ステート（最小限）──
+    const [jaText,   setJaText]   = useState("");
+    const [enText,   setEnText]   = useState("");
+    const [enStatus, setEnStatus] = useState("idle"); // idle|loading|done|error
+    const [esText,   setEsText]   = useState("");
+    const [esStatus, setEsStatus] = useState("idle");
+    const [errMsg,   setErrMsg]   = useState("");
+    // ── 保存中の進捗表示 ──
+    const [saving,   setSaving]   = useState(false);
+    const [saveStep, setSaveStep] = useState("");     // "① IPA取得中..." など
     const timerRef = useRef(null);
 
-    /* 日本語 → 英語 翻訳（700ms デバウンス） */
+    /* ─────────────────────────────────────
+       JA → EN 自動翻訳（表示用・700ms デバウンス）
+    ───────────────────────────────────── */
     useEffect(() => {
       const q = jaText.trim();
       if (!q) {
-        setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
-        setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
+        setEnText(""); setEnStatus("idle");
+        setEsText(""); setEsStatus("idle"); setErrMsg("");
         return;
       }
-      setEnStatus("loading");
-      setEnIpa(""); setEnIpaStatus("idle");
-      setEnWords([]); setEnWordsStatus("idle");
-      setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
-      setEsWords([]); setEsWordsStatus("idle");
+      setEnStatus("loading"); setEsText(""); setEsStatus("idle");
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(async () => {
         try {
-          const translated = await translateText(q, "ja", "en");
-          setEnText(translated);
-          setEnStatus("done");
+          const en = await translateText(q, "ja", "en");
+          setEnText(en); setEnStatus("done");
+          // EN 成功後に ES も表示用で取得
+          if (HAS_ES) {
+            setEsStatus("loading");
+            try {
+              const es = await translateText(en, "en", "es");
+              setEsText(es); setEsStatus("done");
+            } catch { setEsStatus("error"); }
+          }
         } catch {
           setErrMsg("翻訳に失敗しました。ネットワーク接続を確認してください。");
           setEnStatus("error");
@@ -707,57 +716,89 @@
       return () => clearTimeout(timerRef.current);
     }, [jaText]);
 
-    /* 英語完了 → EN IPA + EN単語解説 + ES翻訳 を全て並列実行 */
-    useEffect(() => {
-      if (enStatus !== "done" || !enText) return;
+    /* ─────────────────────────────────────
+       保存ボタン押下 → 全データを順番に取得して1回保存
+       ① EN IPA  ② ES IPA  ③ EN 単語解説  ④ ES 単語解説  ⑤ upsert
+       各ステップは try/catch で独立。失敗 = フォールバック確定。
+    ───────────────────────────────────── */
+    const handleSave = async () => {
+      if (!enText || saving) return;
+      setSaving(true);
 
-      // ① EN IPA（発音記号）
-      setEnIpaStatus("loading");
-      fetchEnIpa(enText)
-        .then(ipa => { setEnIpa(ipa); setEnIpaStatus("done"); })
-        .catch(() => setEnIpaStatus("done"));
+      try {
+        const en = enText;
+        // ES は表示できていれば使用、なければ保存時に再取得
+        let es = esText || "";
+        if (!es && HAS_ES) {
+          setSaveStep("🇪🇸 スペイン語 翻訳中...");
+          try { es = await translateText(en, "en", "es"); } catch {}
+        }
 
-      // ② EN 単語解説（EN→JA バッチ翻訳）
-      setEnWordsStatus("loading");
-      fetchEnWords(enText)
-        .then(ws => { setEnWords(ws); setEnWordsStatus("done"); })
-        .catch(() => { setEnWords([]); setEnWordsStatus("done"); }); // 失敗しても空で続行
+        /* ① EN IPA ─────────────────────────── */
+        setSaveStep("① 🇺🇸 IPA 取得中...");
+        let ipa = "/" + en + "/";          // フォールバック（必ず非空）
+        try {
+          const r = await fetchEnIpa(en);
+          if (r && r.trim()) ipa = r;
+        } catch {}
 
-      // ③ ES 翻訳（ENが成功した場合のみ）
-      if (HAS_ES) {
-        setEsStatus("loading");
-        fetchEsTranslation(enText)
-          .then(es => { setEsText(es); setEsStatus("done"); })
-          .catch(() => setEsStatus("error"));
+        /* ② ES IPA ─────────────────────────── */
+        setSaveStep("② 🇪🇸 IPA 取得中...");
+        let ipa_es = es ? "/" + es + "/" : ""; // フォールバック
+        if (es) {
+          try {
+            const r = await fetchEsIpa(es);
+            if (r && r.trim()) ipa_es = r;
+          } catch {}
+        }
+
+        /* ③ EN 単語解説（EN → JA）────────────── */
+        setSaveStep("③ 🇺🇸 単語解説 生成中...");
+        // フォールバック: スペース分割（必ず非空）
+        let words = en.split(/\s+/).filter(Boolean)
+          .map(w => ({ w, m: "", r: "", note: "" }));
+        try {
+          const r = await fetchEnWords(en);
+          if (r && r.length > 0) words = r;
+        } catch {}
+
+        /* ④ ES 単語解説（ES → JA）────────────── */
+        setSaveStep("④ 🇪🇸 単語解説 生成中...");
+        let words_es = es
+          ? es.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }))
+          : [];
+        if (es) {
+          try {
+            const r = await fetchEsWords(es);
+            if (r && r.length > 0) words_es = r;
+          } catch {}
+        }
+
+        /* ⑤ 全データ確定 → 保存 ────────────── */
+        setSaveStep("⑤ 💾 保存中...");
+        onSaveRequest({
+          ja: jaText.trim(),
+          en,  ipa,    words,
+          es,  ipa_es, words_es,
+        });
+
+      } catch (e) {
+        // ここに来ることは想定外だが念のため
+        console.warn("[handleSave] unexpected error:", e);
+      } finally {
+        setSaving(false);
+        setSaveStep("");
       }
-    }, [enStatus, enText]);
-
-    /* ES 翻訳完了 → ES IPA + ES 単語解説 を並列実行 */
-    useEffect(() => {
-      if (esStatus !== "done" || !esText) return;
-      // ES IPA
-      setEsIpaStatus("loading");
-      fetchEsIpa(esText).then(ipa => { setEsIpa(ipa); setEsIpaStatus("done"); }).catch(() => setEsIpaStatus("done"));
-      // ES 単語解説（バッチ翻訳: 1回のAPIコール）
-      setEsWordsStatus("loading");
-      fetchEsWords(esText).then(ws => { setEsWords(ws); setEsWordsStatus("done"); }).catch(() => setEsWordsStatus("done"));
-    }, [esStatus, esText]);
+    };
 
     const clear = () => {
-      setJaText(""); setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
-      setEnWords([]); setEnWordsStatus("idle");
-      setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
-      setEsWords([]); setEsWordsStatus("idle");
+      setJaText(""); setEnText(""); setEnStatus("idle");
+      setEsText(""); setEsStatus("idle"); setErrMsg("");
       window.speechSynthesis?.cancel();
     };
 
-    /* EN が完了し、IPA・単語解説の生成が全て終わったときに保存可能
-       （loading 中に保存すると空文字・空配列が保存される問題を防止） */
-    const canSave = enStatus === "done"
-      && enIpaStatus   !== "loading"
-      && enWordsStatus !== "loading"
-      && esIpaStatus   !== "loading"
-      && esWordsStatus !== "loading";
+    // EN が翻訳済みで、かつ保存処理中でなければ保存可能
+    const canSave = enStatus === "done" && !saving;
 
     return (
       <div className="translate-panel">
@@ -798,10 +839,6 @@
                 {enStatus === "loading" && <p className="translate-result-text loading"><span className="spinner"/>翻訳中...</p>}
                 {enStatus === "done"    && <p className="translate-result-text">{enText}</p>}
                 {enStatus === "error"   && <p className="translate-result-text error">⚠ {errMsg}</p>}
-                <div className="translate-ipa-row">
-                  {enIpaStatus === "loading" && <span className="translate-ipa-loading"><span className="spinner-sm"/>IPA 生成中...</span>}
-                  {enIpaStatus === "done" && enIpa && <span className="translate-ipa-text">{enIpa}</span>}
-                </div>
                 {enStatus === "done" && (
                   <div className="lang-speak-row">
                     <button className={`speak-big-btn${speakingId === "tr-en" ? " speaking" : ""}`}
@@ -821,11 +858,7 @@
                 {esStatus === "idle"    && <p className="translate-result-text placeholder">英語翻訳後に自動でスペイン語を生成します</p>}
                 {esStatus === "loading" && <p className="translate-result-text loading"><span className="spinner"/>スペイン語に翻訳中...</p>}
                 {esStatus === "done"    && <p className="translate-result-text es-text">{esText}</p>}
-                {esStatus === "error"   && <p className="translate-result-text error">⚠ スペイン語翻訳に失敗しました</p>}
-                <div className="translate-ipa-row">
-                  {esIpaStatus === "loading" && <span className="translate-ipa-loading"><span className="spinner-sm"/>IPA 生成中...</span>}
-                  {esIpaStatus === "done" && esIpa && <span className="translate-ipa-text es">{esIpa}</span>}
-                </div>
+                {esStatus === "error"   && <p className="translate-result-text error">⚠ スペイン語翻訳に失敗しました（保存時に再試行します）</p>}
                 {esStatus === "done" && (
                   <div className="lang-speak-row">
                     <button className={`speak-big-btn es-btn${speakingId === "tr-es" ? " speaking" : ""}`}
@@ -838,20 +871,16 @@
               </div>
             )}
 
-            {/* 保存ボタン */}
+            {/* 保存ボタン（保存中は進捗メッセージを表示） */}
             <div className="translate-save-row">
-              <button className="save-translate-btn" disabled={!canSave}
-                onClick={() => onSaveRequest({
-                  ja:      jaText.trim(),
-                  en:      enText,
-                  ipa:     enIpa,
-                  words:   enWords,   // 英語 単語解説（自動生成）
-                  es:      esText,
-                  ipa_es:  esIpa,
-                  words_es: esWords,  // スペイン語 単語解説（自動生成）
-                })}>
-                ＋ フレーズ帳に保存（EN + ES）
-              </button>
+              {saving
+                ? <span style={{fontSize:".8rem",color:"var(--gray-600)",display:"flex",alignItems:"center",gap:8}}>
+                    <span className="spinner-sm"/>{saveStep}
+                  </span>
+                : <button className="save-translate-btn" disabled={!canSave} onClick={handleSave}>
+                    ＋ フレーズ帳に保存（EN + ES）
+                  </button>
+              }
             </div>
           </div>
         </div>
