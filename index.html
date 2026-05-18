@@ -269,6 +269,18 @@
 
     /* オフラインバナー */
     .offline-banner { background: #7b1fa2; color: #fff; text-align: center; font-size: .78rem; padding: 6px 16px; position: sticky; top: 0; z-index: 200; }
+
+    /* 設定ボタン */
+    .settings-btn { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2); border-radius: 8px; color: #fff; cursor: pointer; font-size: 16px; width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; transition: background .15s; flex-shrink: 0; }
+    .settings-btn:hover { background: rgba(255,255,255,.22); }
+    /* API モードバッジ */
+    .api-mode-badge { font-size: .65rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; letter-spacing: .4px; }
+    .api-mode-badge.openai { background: #10a37f; color: #fff; }
+    .api-mode-badge.fallback { background: rgba(255,255,255,.15); color: var(--gold-light); }
+    /* 設定モーダル */
+    .settings-key-input { font-family: monospace; letter-spacing: .05em; }
+    .settings-note { font-size: .73rem; color: var(--gray-400); line-height: 1.55; margin-top: 6px; }
+    .settings-note strong { color: #2e7d32; }
   </style>
 </head>
 <body>
@@ -661,6 +673,70 @@
   }
 
   /* ════════════════════════════════════════════════════════════
+     OpenAI GPT-4o-mini 一撃パース
+     ─────────────────────────────────────────────────────────
+     日本語テキストを1回のリクエストで
+     EN翻訳・EN IPA・ES翻訳・ES IPA・EN単語解説・ES単語解説
+     すべてJSON形式で返す。
+  ════════════════════════════════════════════════════════════ */
+  async function openAIEnrich(jaText) {
+    const apiKey = (localStorage.getItem("openai_api_key") || "").trim();
+    if (!apiKey) throw new Error("no_key");
+
+    const prompt =
+`You are a language assistant for a Japanese MLB massage therapist.
+Given the Japanese phrase below, return ONLY a valid JSON object — no markdown, no code fences, no extra text.
+
+Required JSON format:
+{
+  "en":       "Natural English translation for a sports medical setting",
+  "ipa":      "/accurate IPA transcription of the English phrase/",
+  "es":       "Natural Spanish translation for a sports medical setting",
+  "ipa_es":   "/accurate IPA transcription of the Spanish phrase/",
+  "words": [
+    {"w":"KeyEnglishWord", "m":"日本語の意味", "r":"", "note":"品詞・文法メモ（日本語）"}
+  ],
+  "words_es": [
+    {"w":"PalabraEspañola", "m":"日本語の意味", "r":"", "note":"品詞・文法メモ（日本語）"}
+  ]
+}
+
+Rules:
+- words / words_es: 3–8 key vocabulary items each; note in Japanese (動詞・名詞・形容詞・慣用表現 etc.)
+- r: always empty string ""
+- IPA must include surrounding /slashes/
+- Return ONLY the JSON object, nothing else
+
+Japanese input: "${jaText}"`;
+
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model:       "gpt-4o-mini",
+        messages:    [{ role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens:  1400,
+      }),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const msg = errBody.error?.message || `HTTP ${res.status}`;
+      throw new Error(`OpenAI: ${msg}`);
+    }
+
+    const data    = await res.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    /* GPT がコードブロックで囲んだ場合も吸収する */
+    const jsonStr = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
+    return JSON.parse(jsonStr);
+  }
+
+  /* ════════════════════════════════════════════════════════════
      翻訳パネル（クリーン再設計版）
      ─────────────────────────────────────────────────────────
      【設計方針】
@@ -722,68 +798,85 @@
        各ステップは try/catch で独立。失敗 = フォールバック確定。
     ───────────────────────────────────── */
     const handleSave = async () => {
-      if (!enText || saving) return;
+      if (!jaText.trim() || saving) return;
       setSaving(true);
 
+      const apiKey = (localStorage.getItem("openai_api_key") || "").trim();
+
       try {
-        const en = enText;
-        // ES は表示できていれば使用、なければ保存時に再取得
+        /* ══════════════════════════════════════════════
+           【経路A】OpenAI API キーあり → 一撃パース
+           1回のリクエストで全フィールドを取得する
+        ══════════════════════════════════════════════ */
+        if (apiKey) {
+          setSaveStep("🤖 GPT-4o-mini で生成中...");
+          try {
+            const r = await openAIEnrich(jaText.trim());
+
+            /* GPT レスポンスをフォールバック付きで正規化 */
+            const en      = (r.en      || "").trim() || enText || jaText.trim();
+            const es      = (r.es      || "").trim();
+            const ipa     = (r.ipa     || "").trim() || "/" + en + "/";
+            const ipa_es  = (r.ipa_es  || "").trim() || (es ? "/" + es + "/" : "");
+            const words   = (Array.isArray(r.words)    && r.words.length    > 0)
+              ? r.words
+              : en.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }));
+            const words_es = (Array.isArray(r.words_es) && r.words_es.length > 0)
+              ? r.words_es
+              : es.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }));
+
+            setSaveStep("💾 保存中...");
+            onSaveRequest({ ja: jaText.trim(), en, ipa, words, es, ipa_es, words_es });
+            return; /* 成功 → フォールバックへ進まない */
+
+          } catch (e) {
+            /* OpenAI が失敗した場合のみフォールバックへ */
+            const msg = e.message === "no_key" ? "APIキー未設定" : e.message;
+            console.warn("[OpenAI] failed:", msg, "→ fallback");
+            setSaveStep(`⚠ GPT エラー (${msg})。別の方法で保存します...`);
+            await new Promise(r => setTimeout(r, 900)); // エラーメッセージを一瞬表示
+          }
+        }
+
+        /* ══════════════════════════════════════════════
+           【経路B】APIキーなし or OpenAI失敗
+           → 既存の翻訳API + スペース分割フォールバック
+        ══════════════════════════════════════════════ */
+        /* EN テキストが表示されていなければ翻訳から実行 */
+        let en = enText || "";
+        if (!en) {
+          setSaveStep("🇺🇸 英語に翻訳中...");
+          try { en = await translateText(jaText.trim(), "ja", "en"); } catch {
+            en = jaText.trim(); /* 翻訳も失敗したら原文で代用 */
+          }
+        }
+
         let es = esText || "";
         if (!es && HAS_ES) {
-          setSaveStep("🇪🇸 スペイン語 翻訳中...");
+          setSaveStep("🇪🇸 スペイン語に翻訳中...");
           try { es = await translateText(en, "en", "es"); } catch {}
         }
 
-        /* ① EN IPA ─────────────────────────── */
         setSaveStep("① 🇺🇸 IPA 取得中...");
-        let ipa = "/" + en + "/";          // フォールバック（必ず非空）
-        try {
-          const r = await fetchEnIpa(en);
-          if (r && r.trim()) ipa = r;
-        } catch {}
+        let ipa = "/" + en + "/";
+        try { const v = await fetchEnIpa(en); if (v) ipa = v; } catch {}
 
-        /* ② ES IPA ─────────────────────────── */
         setSaveStep("② 🇪🇸 IPA 取得中...");
-        let ipa_es = es ? "/" + es + "/" : ""; // フォールバック
-        if (es) {
-          try {
-            const r = await fetchEsIpa(es);
-            if (r && r.trim()) ipa_es = r;
-          } catch {}
-        }
+        let ipa_es = es ? "/" + es + "/" : "";
+        if (es) { try { const v = await fetchEsIpa(es); if (v) ipa_es = v; } catch {} }
 
-        /* ③ EN 単語解説（EN → JA）────────────── */
         setSaveStep("③ 🇺🇸 単語解説 生成中...");
-        // フォールバック: スペース分割（必ず非空）
-        let words = en.split(/\s+/).filter(Boolean)
-          .map(w => ({ w, m: "", r: "", note: "" }));
-        try {
-          const r = await fetchEnWords(en);
-          if (r && r.length > 0) words = r;
-        } catch {}
+        let words = en.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }));
+        try { const v = await fetchEnWords(en); if (v && v.length > 0) words = v; } catch {}
 
-        /* ④ ES 単語解説（ES → JA）────────────── */
         setSaveStep("④ 🇪🇸 単語解説 生成中...");
-        let words_es = es
-          ? es.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }))
-          : [];
-        if (es) {
-          try {
-            const r = await fetchEsWords(es);
-            if (r && r.length > 0) words_es = r;
-          } catch {}
-        }
+        let words_es = es.split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }));
+        if (es) { try { const v = await fetchEsWords(es); if (v && v.length > 0) words_es = v; } catch {} }
 
-        /* ⑤ 全データ確定 → 保存 ────────────── */
-        setSaveStep("⑤ 💾 保存中...");
-        onSaveRequest({
-          ja: jaText.trim(),
-          en,  ipa,    words,
-          es,  ipa_es, words_es,
-        });
+        setSaveStep("💾 保存中...");
+        onSaveRequest({ ja: jaText.trim(), en, ipa, words, es, ipa_es, words_es });
 
       } catch (e) {
-        // ここに来ることは想定外だが念のため
         console.warn("[handleSave] unexpected error:", e);
       } finally {
         setSaving(false);
@@ -800,12 +893,20 @@
     // EN が翻訳済みで、かつ保存処理中でなければ保存可能
     const canSave = enStatus === "done" && !saving;
 
+    /* API モードバッジ（レンダリング時にキーを確認） */
+    const hasApiKey = !!(localStorage.getItem("openai_api_key") || "").trim();
+
     return (
       <div className="translate-panel">
         <div className="translate-panel-header">
           <div className="translate-panel-header-icon">🌐</div>
           <span className="translate-panel-title">日本語 → 英語・スペイン語 自動翻訳</span>
-          <span className="translate-panel-subtitle">🇯🇵→🇺🇸→🇪🇸 同時生成</span>
+          <span className="translate-panel-subtitle" style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:6}}>
+            {hasApiKey
+              ? <span className="api-mode-badge openai">🤖 GPT-4o-mini</span>
+              : <span className="api-mode-badge fallback">⚙ APIキー未設定</span>
+            }
+          </span>
         </div>
         <div className="translate-body">
           {/* ── 日本語入力 ── */}
@@ -882,6 +983,121 @@
                   </button>
               }
             </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  /* ════════════════════════════════
+     設定モーダル（OpenAI API キー管理）
+  ════════════════════════════════ */
+  function SettingsModal({ onClose }) {
+    const [key,     setKey]     = useState(() => localStorage.getItem("openai_api_key") || "");
+    const [saved,   setSaved]   = useState(false);
+    const [testing, setTesting] = useState(false);
+    const [testMsg, setTestMsg] = useState("");
+
+    const saveKey = () => {
+      const trimmed = key.trim();
+      if (trimmed) {
+        localStorage.setItem("openai_api_key", trimmed);
+      } else {
+        localStorage.removeItem("openai_api_key");
+      }
+      setSaved(true);
+      setTestMsg("");
+      setTimeout(() => setSaved(false), 2500);
+    };
+
+    const clearKey = () => {
+      localStorage.removeItem("openai_api_key");
+      setKey(""); setSaved(false); setTestMsg("");
+    };
+
+    /* APIキーが有効かどうかを軽量なリクエストで確認 */
+    const testKey = async () => {
+      const k = key.trim();
+      if (!k) { setTestMsg("❌ キーが空です"); return; }
+      setTesting(true); setTestMsg("接続テスト中...");
+      try {
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${k}` },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [{ role: "user", content: "Reply with just: OK" }],
+            max_tokens: 5,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setTestMsg("✅ 接続成功！GPT-4o-mini が使用できます");
+        } else {
+          setTestMsg(`❌ エラー: ${data.error?.message || `HTTP ${res.status}`}`);
+        }
+      } catch (e) {
+        setTestMsg(`❌ ネットワークエラー: ${e.message}`);
+      } finally {
+        setTesting(false);
+      }
+    };
+
+    const masked = key.length > 10
+      ? key.slice(0, 7) + "•".repeat(Math.min(key.length - 10, 20)) + key.slice(-4)
+      : key;
+
+    return (
+      <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+        <div className="modal modal-sm">
+          <div className="modal-header">
+            <h2>⚙️ 設定</h2>
+            <button className="modal-close" onClick={onClose}>✕</button>
+          </div>
+          <div className="modal-body">
+            <div className="form-group">
+              <label>OpenAI API キー</label>
+              <input
+                type="password"
+                className={`form-control settings-key-input`}
+                value={key}
+                onChange={e => { setKey(e.target.value); setSaved(false); setTestMsg(""); }}
+                placeholder="sk-..."
+                autoComplete="off"
+              />
+              {key.length > 10 && (
+                <p style={{fontSize:".72rem",color:"var(--gray-400)",marginTop:3}}>
+                  {masked}
+                </p>
+              )}
+              <p className="settings-note">
+                入力したキーは <strong>ブラウザの localStorage のみ</strong> に保存されます。<br/>
+                GitHub やサーバーには一切送信されません。<br/>
+                キーを設定すると保存時に <strong style={{color:"#10a37f"}}>GPT-4o-mini</strong> が使われ、
+                翻訳・IPA・単語解説を高精度で一括生成します。
+              </p>
+              {testMsg && (
+                <p style={{
+                  fontSize:".8rem", marginTop:8, padding:"6px 10px",
+                  borderRadius:6,
+                  background: testMsg.startsWith("✅") ? "#e8f5e9" : testMsg.startsWith("❌") ? "#fdecea" : "#f5f5f5",
+                  color: testMsg.startsWith("✅") ? "#2e7d32" : testMsg.startsWith("❌") ? "#c62828" : "var(--gray-600)",
+                }}>
+                  {testMsg}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="modal-footer" style={{flexWrap:"wrap",gap:8}}>
+            {key && <button className="btn-cancel" style={{color:"#c8102e",borderColor:"#f5b8c0"}} onClick={clearKey}>🗑 削除</button>}
+            <button className="btn-cancel" onClick={testKey} disabled={testing || !key.trim()}
+              style={{borderColor:"var(--navy-light)",color:"var(--navy)"}}>
+              {testing ? "テスト中..." : "🔌 接続テスト"}
+            </button>
+            <button className="btn-cancel" onClick={onClose}>閉じる</button>
+            <button className="btn-save" onClick={saveKey}>
+              {saved ? "✓ 保存済み！" : "保存"}
+            </button>
           </div>
         </div>
       </div>
@@ -1262,6 +1478,7 @@
     const [detailTarget,   setDetail]     = useState(null);
     const [openWords,      setOpenWords]  = useState({});
     const [showAddCat,     setShowAddCat] = useState(false);
+    const [showSettings,   setShowSettings] = useState(false);
 
     /* detailTarget を phrases の最新状態に同期
        （保存後にモーダルを開き直さなくても最新データが表示される） */
@@ -1383,6 +1600,7 @@
             <div className="header-top">
               <div className="header-icon">⚾</div>
               <h1>MLB Phrase Book <span className="triple-badge">TRIPLE</span></h1>
+              <button className="settings-btn" onClick={() => setShowSettings(true)} title="設定（APIキー）">⚙</button>
             </div>
             <p className="header-sub">Massage Therapist Edition — 🇯🇵 🇺🇸 🇪🇸 トリプルマスター版</p>
             <p className="voice-indicator" style={{display:"flex",alignItems:"center",flexWrap:"wrap",gap:6}}>
@@ -1502,6 +1720,7 @@
           )}
         </main>
 
+        {showSettings  && <SettingsModal onClose={() => setShowSettings(false)} />}
         {showAddCat && <AddCategoryModal onAdd={addCategory} onClose={() => setShowAddCat(false)} usedIdxs={categories.map(c => c.paletteIdx)} />}
         {showAdd && <PhraseModal phrase={addPreset} onSave={savePhrase} onClose={() => { setShowAdd(false); setAddPreset(null); }} categories={categories} />}
         {editTarget && <PhraseModal phrase={editTarget} onSave={savePhrase} onClose={() => setEditTarget(null)} categories={categories} />}
