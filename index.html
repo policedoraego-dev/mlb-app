@@ -685,27 +685,23 @@
 
     const prompt =
 `You are a language assistant for a Japanese MLB massage therapist.
-Given the Japanese phrase below, return ONLY a valid JSON object — no markdown, no code fences, no extra text.
+Given the Japanese phrase below, output a JSON object with EXACTLY these 6 keys.
+ALL 6 keys are required — never omit any of them.
 
-Required JSON format:
 {
   "en":       "Natural English translation for a sports medical setting",
-  "ipa":      "/accurate IPA transcription of the English phrase/",
+  "ipa":      "/IPA transcription of the English phrase, e.g. /wɛr dʌz ɪt hɜːrt//",
   "es":       "Natural Spanish translation for a sports medical setting",
-  "ipa_es":   "/accurate IPA transcription of the Spanish phrase/",
-  "words": [
-    {"w":"KeyEnglishWord", "m":"日本語の意味", "r":"", "note":"品詞・文法メモ（日本語）"}
-  ],
-  "words_es": [
-    {"w":"PalabraEspañola", "m":"日本語の意味", "r":"", "note":"品詞・文法メモ（日本語）"}
-  ]
+  "ipa_es":   "/IPA transcription of the Spanish phrase, e.g. /ˈdonde le ˈdwele//",
+  "words":    [{"w":"EnglishWord","m":"日本語の意味","r":"","note":"品詞メモ"}],
+  "words_es": [{"w":"PalabraES","m":"日本語の意味","r":"","note":"品詞メモ"}]
 }
 
-Rules:
-- words / words_es: 3–8 key vocabulary items each; note in Japanese (動詞・名詞・形容詞・慣用表現 etc.)
-- r: always empty string ""
-- IPA must include surrounding /slashes/
-- Return ONLY the JSON object, nothing else
+IMPORTANT RULES:
+1. "ipa"    — REQUIRED. IPA for the English phrase. Wrap in /slashes/.
+2. "ipa_es" — REQUIRED. IPA for the Spanish phrase. Wrap in /slashes/. DO NOT omit this field.
+3. words / words_es: 3–8 key vocabulary items. note in Japanese (動詞・名詞・形容詞・慣用表現 etc.)
+4. r field: always ""
 
 Japanese input: "${jaText}"`;
 
@@ -716,10 +712,11 @@ Japanese input: "${jaText}"`;
         "Authorization": `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model:       "gpt-4o-mini",
-        messages:    [{ role: "user", content: prompt }],
-        temperature: 0.2,
-        max_tokens:  1400,
+        model:           "gpt-4o-mini",
+        messages:        [{ role: "user", content: prompt }],
+        temperature:     0.2,
+        max_tokens:      1400,
+        response_format: { type: "json_object" },  // JSON出力を強制
       }),
     });
 
@@ -731,9 +728,18 @@ Japanese input: "${jaText}"`;
 
     const data    = await res.json();
     const content = data.choices?.[0]?.message?.content || "";
-    /* GPT がコードブロックで囲んだ場合も吸収する */
+    /* response_format:json_object でも念のためコードブロックを除去 */
     const jsonStr = content.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
-    return JSON.parse(jsonStr);
+    const parsed  = JSON.parse(jsonStr);
+
+    /* ipa_es が欠落していた場合の最終フォールバック */
+    if (!parsed.ipa_es && parsed.es) {
+      parsed.ipa_es = "/" + parsed.es + "/";
+      console.warn("[openAIEnrich] ipa_es missing from GPT response → fallback applied");
+    }
+
+    console.log("[openAIEnrich] response:", parsed); // デバッグ用
+    return parsed;
   }
 
   /* ════════════════════════════════════════════════════════════
@@ -1423,27 +1429,31 @@ Japanese input: "${jaText}"`;
         } else {
           setPhrases(sbPhrases);
 
-          /* ── words / words_es が空のフレーズをバックグラウンドで自動補完 ──
-             Supabase に古いデータ（単語解説なし）が残っている場合に対応。
-             1 フレーズずつ順番に処理し、API レート制限を回避する。        */
+          /* ── words / words_es / ipa_es が空のフレーズをバックグラウンドで自動補完 ──
+             Supabase に古いデータが残っている場合に対応（1件ずつ処理）。
+             ipa_es は supabase_migration_v2 追加時に DEFAULT '' で埋まるため
+             既存レコードでも空になっていることがある。                       */
           const needsRegen = sbPhrases.filter(p =>
             (p.phrase    && (p.words    || []).length === 0) ||
-            (p.phrase_es && (p.words_es || []).length === 0)
+            (p.phrase_es && (p.words_es || []).length === 0) ||
+            (p.phrase_es && !p.ipa_es)   // ← ipa_es が空のレコードも対象
           );
           if (needsRegen.length > 0) {
             (async () => {
               for (const p of needsRegen) {
                 try {
-                  const [newWords, newWordsEs] = await Promise.all([
-                    (p.words    || []).length === 0 && p.phrase
-                      ? fetchEnWords(p.phrase)
-                      : Promise.resolve(p.words    || []),
-                    (p.words_es || []).length === 0 && p.phrase_es
-                      ? fetchEsWords(p.phrase_es)
-                      : Promise.resolve(p.words_es || []),
+                  const needsWords   = (p.words    || []).length === 0 && !!p.phrase;
+                  const needsWordsEs = (p.words_es || []).length === 0 && !!p.phrase_es;
+                  const needsIpaEs   = !p.ipa_es && !!p.phrase_es;
+
+                  const [newWords, newWordsEs, newIpaEs] = await Promise.all([
+                    needsWords   ? fetchEnWords(p.phrase)    : Promise.resolve(p.words    || []),
+                    needsWordsEs ? fetchEsWords(p.phrase_es) : Promise.resolve(p.words_es || []),
+                    /* ipa_es: fetchEsIpa は必ず非空を返す（フォールバック付き） */
+                    needsIpaEs   ? fetchEsIpa(p.phrase_es)   : Promise.resolve(p.ipa_es   || ""),
                   ]);
-                  const upd = { ...p, words: newWords, words_es: newWordsEs };
-                  /* React state + Supabase を両方更新 */
+
+                  const upd = { ...p, words: newWords, words_es: newWordsEs, ipa_es: newIpaEs };
                   setPhrases(ps => ps.map(x => x.id === upd.id ? upd : x));
                   await db.upsertPhrase(upd);
                 } catch { /* 1件失敗しても次へ続行 */ }
@@ -1488,22 +1498,23 @@ Japanese input: "${jaText}"`;
       if (updated && updated !== detailTarget) setDetail(updated);
     }, [phrases]); // eslint-disable-line
 
-    /* 詳細モーダルを開いたとき words / words_es が空なら即座に再生成 */
+    /* 詳細モーダルを開いたとき words / words_es / ipa_es が空なら即座に再生成 */
     useEffect(() => {
       if (!detailTarget) return;
-      const needsEn = detailTarget.phrase    && (detailTarget.words    || []).length === 0;
-      const needsEs = detailTarget.phrase_es && (detailTarget.words_es || []).length === 0;
-      if (!needsEn && !needsEs) return;
+      const needsEn    = detailTarget.phrase    && (detailTarget.words    || []).length === 0;
+      const needsEs    = detailTarget.phrase_es && (detailTarget.words_es || []).length === 0;
+      const needsIpaEs = detailTarget.phrase_es && !detailTarget.ipa_es;
+      if (!needsEn && !needsEs && !needsIpaEs) return;
       (async () => {
         try {
-          const [newWords, newWordsEs] = await Promise.all([
-            needsEn ? fetchEnWords(detailTarget.phrase)       : Promise.resolve(detailTarget.words    || []),
-            needsEs ? fetchEsWords(detailTarget.phrase_es)    : Promise.resolve(detailTarget.words_es || []),
+          const [newWords, newWordsEs, newIpaEs] = await Promise.all([
+            needsEn    ? fetchEnWords(detailTarget.phrase)    : Promise.resolve(detailTarget.words    || []),
+            needsEs    ? fetchEsWords(detailTarget.phrase_es) : Promise.resolve(detailTarget.words_es || []),
+            needsIpaEs ? fetchEsIpa(detailTarget.phrase_es)   : Promise.resolve(detailTarget.ipa_es   || ""),
           ]);
-          const upd = { ...detailTarget, words: newWords, words_es: newWordsEs };
+          const upd = { ...detailTarget, words: newWords, words_es: newWordsEs, ipa_es: newIpaEs };
           setPhrases(ps => ps.map(x => x.id === upd.id ? upd : x));
           db.upsertPhrase(upd);
-          /* setDetail は phrases 同期 useEffect が自動で更新してくれる */
         } catch {}
       })();
     }, [detailTarget?.id]); // eslint-disable-line
