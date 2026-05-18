@@ -165,6 +165,18 @@
     .word-chip { display: inline-flex; flex-direction: column; padding: 6px 10px; border: 1.5px solid var(--gray-200); border-radius: 8px; background: var(--gray-100); cursor: pointer; transition: all .15s; }
     .word-chip:hover { border-color: var(--navy-light); background: #eef2fb; }
     .word-chip.speaking { border-color: var(--gold); background: var(--gold-pale); }
+    /* 🇪🇸 スペイン語チップ */
+    .word-chip.es { border-color: var(--es-border); background: var(--es-bg); }
+    .word-chip.es:hover { border-color: var(--es-accent); background: #ffe0e0; }
+    .word-chip.es.speaking { border-color: var(--gold); background: var(--gold-pale); }
+    .word-chip.es .wc-en { color: #8b1a1a; }
+    .word-breakdown-label { font-size: .68rem; font-weight: 700; letter-spacing: .6px; margin: 8px 0 4px; padding: 2px 6px; border-radius: 4px; display: inline-block; }
+    .word-breakdown-label.en { color: #1e3460; background: #e8edf8; }
+    .word-breakdown-label.es { color: var(--es-accent); background: var(--es-bg); border: 1px solid var(--es-border); }
+    /* 詳細モーダル内のスペイン語単語テーブル */
+    .wt-word-es { font-weight: 600; color: #8b1a1a; }
+    .wt-speak-es { background: var(--es-bg) !important; }
+    .wt-speak-es:hover { background: #ffd0d0 !important; }
     .wc-en { font-size: .82rem; font-weight: 600; color: var(--text); }
     .wc-read { font-size: .65rem; color: var(--gray-400); font-style: italic; }
     .wc-ja { font-size: .7rem; color: var(--gray-600); margin-top: 2px; }
@@ -299,13 +311,14 @@
   /* ── DB ヘルパー ────────────────────────────────────────── */
   const db = {
     ready: !!sb,
-    _fromRow: (r) => ({ ...r, tags: r.tags || [], words: r.words || [], phrase_es: r.phrase_es || "", ipa_es: r.ipa_es || "" }),
+    _fromRow: (r) => ({ ...r, tags: r.tags || [], words: r.words || [], phrase_es: r.phrase_es || "", ipa_es: r.ipa_es || "", words_es: r.words_es || [] }),
     _toRow: (p) => ({
       id: p.id, phrase: p.phrase, ipa: p.ipa || "", reading: p.reading || "",
       meaning: p.meaning || "", category: p.category, example: p.example || "",
       tags: Array.isArray(p.tags) ? p.tags : [],
       starred: !!p.starred, words: p.words || [],
       phrase_es: p.phrase_es || "", ipa_es: p.ipa_es || "",
+      words_es: p.words_es || [],
     }),
     async loadAll() {
       if (!sb) return null;
@@ -363,14 +376,14 @@
 
   /* ── フレーズ初期データ ─────────────────────────────────── */
   const INITIAL_PHRASES = [
-    { id:1, phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", phrase_es:"¿Dónde le duele?", ipa_es:"/ˈdonde le ˈdwele/", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む",note:"動詞"}]},
-    { id:2, phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", phrase_es:"Avíseme si la presión es demasiada.", ipa_es:"/aˈβiseme si la preˈsjon es demaˈsjada/", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}]},
-    { id:3, phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", phrase_es:"Respira profundo y relájate.", ipa_es:"/resˈpira proˈfundo i reˈlaxate/", category:"treatment", example:"Take a deep breath and relax your hamstring.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞"}]},
-    { id:4, phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", phrase_es:"¿Cómo siente el brazo hoy?", ipa_es:"/ˈkomo ˈsjente el ˈbraθo oj/", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}]},
-    { id:5, phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", phrase_es:"¡Estás listo — ve a por ellos!", ipa_es:"/esˈtas ˈlisto ˈbe a por ˈeʎos/", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}]},
-    { id:6, phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", phrase_es:"Aplica hielo por 20 minutos después del juego.", ipa_es:"/aˈplika ˈjelo por ˈbeinte miˈnutos desˈpwes del ˈxweɣo/", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}]},
-    { id:7, phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", phrase_es:"Necesito referirle al médico del equipo.", ipa_es:"/neθeˈsito refeˈrirle al ˈmeðiko del eˈkipo/", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター"}]},
-    { id:8, phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", phrase_es:"En una escala del 1 al 10, ¿cuánto le duele?", ipa_es:"/en ˈuna esˈkala del ˈuno al ˈdjez ˈkwanto le ˈdwele/", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}]},
+    { id:1, phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", phrase_es:"¿Dónde le duele?", ipa_es:"/ˈdonde le ˈdwele/", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む",note:"動詞"}], words_es:[{w:"Dónde",r:"",m:"どこに",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称単数"}]},
+    { id:2, phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", phrase_es:"Avíseme si la presión es demasiada.", ipa_es:"/aˈβiseme si la preˈsjon es demaˈsjada/", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}], words_es:[{w:"Avíseme",r:"",m:"教えてください",note:"avisarの命令形+間接目的語"},{w:"si",r:"",m:"もし〜なら",note:"接続詞"},{w:"presión",r:"",m:"圧力・プレッシャー",note:"名詞"},{w:"demasiada",r:"",m:"強すぎる",note:"形容詞"}]},
+    { id:3, phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", phrase_es:"Respira profundo y relájate.", ipa_es:"/resˈpira proˈfundo i reˈlaxate/", category:"treatment", example:"Take a deep breath and relax your hamstring.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞"}], words_es:[{w:"Respira",r:"",m:"呼吸する",note:"respirarの命令形"},{w:"profundo",r:"",m:"深く",note:"副詞"},{w:"relájate",r:"",m:"リラックスして",note:"relajarの再帰命令形"}]},
+    { id:4, phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", phrase_es:"¿Cómo siente el brazo hoy?", ipa_es:"/ˈkomo ˈsjente el ˈbraθo oj/", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}], words_es:[{w:"Cómo",r:"",m:"どのように",note:"疑問副詞"},{w:"siente",r:"",m:"感じる",note:"sentirの三人称"},{w:"brazo",r:"",m:"腕",note:"名詞"},{w:"hoy",r:"",m:"今日",note:"副詞"}]},
+    { id:5, phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", phrase_es:"¡Estás listo — ve a por ellos!", ipa_es:"/esˈtas ˈlisto ˈbe a por ˈeʎos/", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}], words_es:[{w:"Estás",r:"",m:"あなたは〜だ",note:"estar二人称"},{w:"listo",r:"",m:"準備完了",note:"形容詞"},{w:"ve",r:"",m:"行け",note:"ir の命令形"},{w:"ellos",r:"",m:"彼ら",note:"三人称複数"}]},
+    { id:6, phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", phrase_es:"Aplica hielo por 20 minutos después del juego.", ipa_es:"/aˈplika ˈjelo por ˈbeinte miˈnutos desˈpwes del ˈxweɣo/", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}], words_es:[{w:"Aplica",r:"",m:"適用する・当てる",note:"aplicarの命令形"},{w:"hielo",r:"",m:"氷",note:"名詞"},{w:"minutos",r:"",m:"分（時間）",note:"名詞複数"},{w:"después",r:"",m:"〜の後で",note:"副詞"},{w:"juego",r:"",m:"試合・ゲーム",note:"名詞"}]},
+    { id:7, phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", phrase_es:"Necesito referirle al médico del equipo.", ipa_es:"/neθeˈsito refeˈrirle al ˈmeðiko del eˈkipo/", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター"}], words_es:[{w:"Necesito",r:"",m:"〜が必要です",note:"necesitar一人称"},{w:"referirle",r:"",m:"紹介する",note:"referir＋間接目的語"},{w:"médico",r:"",m:"医師・ドクター",note:"名詞"},{w:"equipo",r:"",m:"チーム",note:"名詞"}]},
+    { id:8, phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", phrase_es:"En una escala del 1 al 10, ¿cuánto le duele?", ipa_es:"/en ˈuna esˈkala del ˈuno al ˈdjez ˈkwanto le ˈdwele/", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}], words_es:[{w:"escala",r:"",m:"スケール・尺度",note:"名詞"},{w:"cuánto",r:"",m:"どのくらい",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称"}]},
   ];
 
   /* ════════════════════════════════
@@ -534,6 +547,49 @@
   }
 
   /* ════════════════════════════════
+     スペイン語 単語解説 自動生成
+     ・スペイン語フレーズをトークン分割
+     ・改行区切りでバッチ翻訳（API1回）
+     ・単語オブジェクト配列 {w,r,m,note} を返す
+  ════════════════════════════════ */
+  async function fetchEsWords(esPhrase) {
+    if (!esPhrase) return [];
+    /* 句読点を除いた単語トークンを抽出 */
+    const tokens = esPhrase.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi) || [];
+    if (!tokens.length) return [];
+
+    /* 重複除去（元の出現順を保持） */
+    const seen = new Set();
+    const unique = [];
+    for (const t of tokens) {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); unique.push(t); }
+    }
+
+    /* 改行区切りでバッチ翻訳（ES→JA）: API コール 1回 */
+    const transMap = {};
+    try {
+      const batch  = unique.slice(0, 14).join("\n");
+      const result = await translateText(batch, "es", "ja");
+      result.split("\n").forEach((line, i) => {
+        if (unique[i]) transMap[unique[i].toLowerCase()] = line.trim();
+      });
+    } catch { /* ネットワーク失敗時は空のまま */ }
+
+    /* 元フレーズの出現順で構築、意味が取れた単語のみ */
+    const built = new Set();
+    return tokens
+      .filter(t => {
+        const k = t.toLowerCase();
+        if (built.has(k)) return false;
+        built.add(k);
+        return !!transMap[k]; // 意味が取れなかったものは除外
+      })
+      .slice(0, 14)
+      .map(w => ({ w, r: "", m: transMap[w.toLowerCase()] || "", note: "" }));
+  }
+
+  /* ════════════════════════════════
      翻訳パネル（トリプルマスター版）
   ════════════════════════════════ */
   function TranslatePanel({ onSaveRequest, speakingId, speak }) {
@@ -544,9 +600,11 @@
     const [enIpaStatus, setEnIpaStatus] = useState("idle");
     const [esText,      setEsText]      = useState("");
     const [esStatus,    setEsStatus]    = useState("idle");   // idle|loading|done|error
-    const [esIpa,       setEsIpa]       = useState("");
-    const [esIpaStatus, setEsIpaStatus] = useState("idle");
-    const [errMsg,      setErrMsg]      = useState("");
+    const [esIpa,        setEsIpa]        = useState("");
+    const [esIpaStatus,  setEsIpaStatus]  = useState("idle");
+    const [esWords,      setEsWords]      = useState([]);
+    const [esWordsStatus,setEsWordsStatus]= useState("idle");  // idle|loading|done
+    const [errMsg,       setErrMsg]       = useState("");
     const timerRef = useRef(null);
 
     /* 日本語 → 英語 翻訳（700ms デバウンス） */
@@ -560,6 +618,7 @@
       setEnStatus("loading");
       setEnIpa(""); setEnIpaStatus("idle");
       setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
+      setEsWords([]); setEsWordsStatus("idle");
       clearTimeout(timerRef.current);
       timerRef.current = setTimeout(async () => {
         try {
@@ -587,16 +646,21 @@
       }
     }, [enStatus, enText]);
 
-    /* ES 翻訳完了 → ES IPA */
+    /* ES 翻訳完了 → ES IPA + ES 単語解説 を並列実行 */
     useEffect(() => {
       if (esStatus !== "done" || !esText) return;
+      // ES IPA
       setEsIpaStatus("loading");
       fetchEsIpa(esText).then(ipa => { setEsIpa(ipa); setEsIpaStatus("done"); }).catch(() => setEsIpaStatus("done"));
+      // ES 単語解説（バッチ翻訳: 1回のAPIコール）
+      setEsWordsStatus("loading");
+      fetchEsWords(esText).then(ws => { setEsWords(ws); setEsWordsStatus("done"); }).catch(() => setEsWordsStatus("done"));
     }, [esStatus, esText]);
 
     const clear = () => {
       setJaText(""); setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
       setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
+      setEsWords([]); setEsWordsStatus("idle");
       window.speechSynthesis?.cancel();
     };
 
@@ -684,7 +748,7 @@
             {/* 保存ボタン */}
             <div className="translate-save-row">
               <button className="save-translate-btn" disabled={!canSave}
-                onClick={() => onSaveRequest({ ja: jaText.trim(), en: enText, ipa: enIpa, es: esText, ipa_es: esIpa })}>
+                onClick={() => onSaveRequest({ ja: jaText.trim(), en: enText, ipa: enIpa, es: esText, ipa_es: esIpa, words_es: esWords })}>
                 ＋ フレーズ帳に保存（EN + ES）
               </button>
             </div>
@@ -748,15 +812,17 @@
   /* ════════════════════════════════
      単語チップ
   ════════════════════════════════ */
-  function WordChips({ words, speakingId, speak, phraseId }) {
+  /* lang: "en-US" | "es-ES" */
+  function WordChips({ words, speakingId, speak, phraseId, lang = "en-US" }) {
+    const isEs = lang.startsWith("es");
     return (
       <div className="word-breakdown">
         <div className="word-chip-row">
           {(words||[]).map((w, i) => {
             const wid = `wc-${phraseId}-${i}`;
             return (
-              <div key={i} className={`word-chip${speakingId===wid?" speaking":""}`}
-                onClick={e => { e.stopPropagation(); speak(w.w, wid, "en-US"); }} title="タップして発音確認">
+              <div key={i} className={`word-chip${isEs ? " es" : ""}${speakingId===wid?" speaking":""}`}
+                onClick={e => { e.stopPropagation(); speak(w.w, wid, lang); }} title="タップして発音確認">
                 <span className="wc-en">{w.w}</span>
                 {w.r && <span className="wc-read">{w.r}</span>}
                 <span className="wc-ja">{w.m}</span>
@@ -773,7 +839,7 @@
      フレーズ追加・編集モーダル
   ════════════════════════════════ */
   function PhraseModal({ phrase, onSave, onClose, categories }) {
-    const blank = { phrase:"", ipa:"", reading:"", meaning:"", phrase_es:"", ipa_es:"", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] };
+    const blank = { phrase:"", ipa:"", reading:"", meaning:"", phrase_es:"", ipa_es:"", words_es:[], category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] };
     const initForm = () => {
       if (!phrase) return blank;
       const tags = Array.isArray(phrase.tags) ? phrase.tags.join(", ") : (phrase.tags || "");
@@ -908,7 +974,7 @@
             {phrase.example && <div className="detail-section"><p className="detail-label">例文</p><p className="detail-example">"{phrase.example}"</p></div>}
             {(phrase.words||[]).length > 0 && (
               <div className="detail-section">
-                <p className="detail-label">単語・フレーズ解説</p>
+                <p className="detail-label">🇺🇸 英語 — 単語・フレーズ解説</p>
                 <table className="word-table">
                   <thead><tr><th>単語</th><th>意味</th><th>品詞メモ</th><th></th></tr></thead>
                   <tbody>
@@ -920,6 +986,36 @@
                           <td><span className="wt-ja">{w.m}</span></td>
                           <td>{w.note && <span className="wt-note">{w.note}</span>}</td>
                           <td><button className={`wt-speak${speakingId===wid?" speaking":""}`} onClick={() => speak(w.w, wid, "en-US")}><SpeakerIcon size={13} speaking={speakingId===wid}/></button></td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {/* 🇪🇸 スペイン語 単語解説 */}
+            {HAS_ES && (phrase.words_es||[]).length > 0 && (
+              <div className="detail-section">
+                <p className="detail-label" style={{color:"var(--es-accent)"}}>🇪🇸 Español — 単語・フレーズ解説</p>
+                <table className="word-table">
+                  <thead><tr><th>単語</th><th>日本語訳</th><th>品詞メモ</th><th></th></tr></thead>
+                  <tbody>
+                    {phrase.words_es.map((w, i) => {
+                      const wid = `wt-es-${phrase.id}-${i}`;
+                      return (
+                        <tr key={i}>
+                          <td>
+                            <span className="wt-word wt-word-es">{w.w}</span>
+                            {w.r && <span className="wt-read">{w.r}</span>}
+                          </td>
+                          <td><span className="wt-ja">{w.m}</span></td>
+                          <td>{w.note && <span className="wt-note" style={{background:"#ffe8e8",color:"#8b1a1a"}}>{w.note}</span>}</td>
+                          <td>
+                            <button className={`wt-speak wt-speak-es${speakingId===wid?" speaking":""}`}
+                              onClick={() => speak(w.w, wid, "es-ES")}>
+                              <SpeakerIcon size={13} speaking={speakingId===wid}/>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1011,7 +1107,7 @@
 
     const savePhrase = (data) => {
       const tags       = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
-      const normalized = { ...data, tags, words: data.words || [], phrase_es: data.phrase_es || "", ipa_es: data.ipa_es || "" };
+      const normalized = { ...data, tags, words: data.words || [], phrase_es: data.phrase_es || "", ipa_es: data.ipa_es || "", words_es: data.words_es || [] };
       if (normalized.id) {
         setPhrases(ps => ps.map(p => p.id === normalized.id ? normalized : p));
         db.upsertPhrase(normalized);
@@ -1033,8 +1129,8 @@
     const addCategory   = (cat) => { setCategories(cs => [...cs, cat]); db.upsertCategory(cat); };
     const deleteCategory = (key) => { setCategories(cs => cs.filter(c => c.key !== key)); db.deleteCategory(key); if (activeCategory === key) setCategory("all"); };
 
-    const handleSaveRequest = ({ ja, en, ipa, es, ipa_es }) => {
-      setAddPreset({ phrase: en, meaning: ja, ipa: ipa || "", reading:"", phrase_es: es || "", ipa_es: ipa_es || "", category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] });
+    const handleSaveRequest = ({ ja, en, ipa, es, ipa_es, words_es }) => {
+      setAddPreset({ phrase: en, meaning: ja, ipa: ipa || "", reading:"", phrase_es: es || "", ipa_es: ipa_es || "", words_es: words_es || [], category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] });
       setShowAdd(true);
     };
 
@@ -1132,7 +1228,22 @@
                         {p.starred && <span className="tag" style={{background:"#fef8e7",color:"#7a5c00"}}>⭐</span>}
                       </div>
                     )}
-                    {wordsOpen && <WordChips words={p.words} speakingId={speakingId} speak={speak} phraseId={p.id}/>}
+                    {wordsOpen && (
+                      <>
+                        {(p.words||[]).length > 0 && (
+                          <>
+                            <span className="word-breakdown-label en">🇺🇸 English</span>
+                            <WordChips words={p.words} speakingId={speakingId} speak={speak} phraseId={p.id} lang="en-US"/>
+                          </>
+                        )}
+                        {HAS_ES && (p.words_es||[]).length > 0 && (
+                          <>
+                            <span className="word-breakdown-label es">🇪🇸 Español</span>
+                            <WordChips words={p.words_es} speakingId={speakingId} speak={speak} phraseId={`${p.id}-es`} lang="es-ES"/>
+                          </>
+                        )}
+                      </>
+                    )}
                     <div className="card-footer" onClick={e => e.stopPropagation()}>
                       <div className="card-speak-group">
                         {HAS_EN && (
@@ -1146,7 +1257,7 @@
                           </button>
                         )}
                       </div>
-                      {(p.words||[]).length > 0 && (
+                      {((p.words||[]).length > 0 || (HAS_ES && (p.words_es||[]).length > 0)) && (
                         <button className={`word-toggle-btn${wordsOpen?" open":""}`} onClick={e => toggleWords(p.id, e)}>
                           📖 {wordsOpen?"▲":"▼"}
                         </button>
