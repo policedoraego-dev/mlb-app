@@ -334,22 +334,38 @@
     async upsertPhrase(p) {
       if (!sb) return;
       const row = this._toRow(p);
-      /* ══ 最終安全装置 ══════════════════════════════════════════
-         upsert 直前に words / words_es が空配列なら
-         phrase をスペース分割して最低限のオブジェクトを生成する。
-         API の成否・タイミングに完全に依存しない最後の砦。      */
+      /* ══════════════════════════════════════════════════════
+         最終安全装置 — Supabase upsert 直前の強制フォールバック
+         API 失敗・タイミングずれ・あらゆる経路で空になった場合に
+         ここで必ず有効な値を補完する。                         */
+
+      /* ① words: 空配列 → phrase をスペース分割 */
       if (!row.words || row.words.length === 0) {
         row.words = (row.phrase || "")
           .split(/\s+/).filter(Boolean)
-          .map(w => ({ w }));
-        console.info("[SafeGuard] words was empty → space-split fallback applied:", row.words);
+          .map(w => ({ w, m: "", r: "", note: "" }));
+        console.info("[SafeGuard] words fallback:", row.words);
       }
+
+      /* ② words_es: 空配列 → phrase_es をスペース分割 */
       if (!row.words_es || row.words_es.length === 0) {
         row.words_es = (row.phrase_es || "")
           .split(/\s+/).filter(Boolean)
-          .map(w => ({ w }));
+          .map(w => ({ w, m: "", r: "", note: "" }));
         if (row.phrase_es)
-          console.info("[SafeGuard] words_es was empty → space-split fallback applied:", row.words_es);
+          console.info("[SafeGuard] words_es fallback:", row.words_es);
+      }
+
+      /* ③ ipa: 空文字 → "/" + phrase + "/" */
+      if (!row.ipa && row.phrase) {
+        row.ipa = "/" + row.phrase + "/";
+        console.info("[SafeGuard] ipa fallback:", row.ipa);
+      }
+
+      /* ④ ipa_es: 空文字 → "/" + phrase_es + "/" */
+      if (!row.ipa_es && row.phrase_es) {
+        row.ipa_es = "/" + row.phrase_es + "/";
+        console.info("[SafeGuard] ipa_es fallback:", row.ipa_es);
       }
       /* ═══════════════════════════════════════════════════════ */
       const { error } = await sb.from("phrases").upsert(row);
@@ -475,26 +491,35 @@
 
   /* ════════════════════════════════
      英語 IPA 自動生成
+     ・dictionaryapi.dev が全単語で失敗した場合は
+       フレーズそのもの（"/phrase/"）をフォールバックとして返す
+     ・絶対に空文字 "" を返さない
   ════════════════════════════════ */
   async function fetchEnIpa(phrase) {
-    const tokens = phrase.match(/[a-zA-Z]+/g) || [];
-    if (!tokens.length) return "";
-    const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
-    const ipaMap = {};
-    await Promise.all(unique.slice(0, 18).map(async (word) => {
-      try {
-        const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
-        if (!r.ok) return;
-        const d = await r.json();
-        if (!Array.isArray(d) || !d[0]) return;
-        const entry = d[0];
-        let ipa = entry.phonetic;
-        if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
-        if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
-      } catch {}
-    }));
-    const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
-    return parts.length ? "/" + parts.join(" ") + "/" : "";
+    try {
+      const tokens = phrase.match(/[a-zA-Z]+/g) || [];
+      if (!tokens.length) return "/" + phrase + "/";
+      const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
+      const ipaMap = {};
+      await Promise.all(unique.slice(0, 18).map(async (word) => {
+        try {
+          const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+          if (!r.ok) return;
+          const d = await r.json();
+          if (!Array.isArray(d) || !d[0]) return;
+          const entry = d[0];
+          let ipa = entry.phonetic;
+          if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
+          if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
+        } catch {}
+      }));
+      const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
+      /* API で取れた IPA があればそれを使用、なければフレーズをそのままフォールバック */
+      return parts.length ? "/" + parts.join(" ") + "/" : "/" + phrase + "/";
+    } catch {
+      /* 予期しないエラーでもフォールバックを返す（絶対に "" にしない） */
+      return "/" + phrase + "/";
+    }
   }
 
   /* ════════════════════════════════
@@ -541,28 +566,33 @@
 
   /* ════════════════════════════════
      スペイン語 IPA（ベストエフォート）
-     スペイン語は発音が規則的なため、
-     英語より精度は低くなる場合があります
+     ・スペイン語は発音が規則的なため、英語より精度は低くなる場合があります
+     ・dictionaryapi.dev が失敗した場合はフレーズそのままをフォールバック
+     ・絶対に空文字 "" を返さない
   ════════════════════════════════ */
   async function fetchEsIpa(phrase) {
-    const tokens = phrase.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi) || [];
-    if (!tokens.length) return "";
-    const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
-    const ipaMap = {};
-    await Promise.all(unique.slice(0, 12).map(async (word) => {
-      try {
-        const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/es/${word}`);
-        if (!r.ok) return;
-        const d = await r.json();
-        if (!Array.isArray(d) || !d[0]) return;
-        const entry = d[0];
-        let ipa = entry.phonetic;
-        if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
-        if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
-      } catch {}
-    }));
-    const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
-    return parts.length ? "/" + parts.join(" ") + "/" : "";
+    try {
+      const tokens = phrase.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi) || [];
+      if (!tokens.length) return "/" + phrase + "/";
+      const unique = [...new Set(tokens.map(w => w.toLowerCase()))];
+      const ipaMap = {};
+      await Promise.all(unique.slice(0, 12).map(async (word) => {
+        try {
+          const r = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/es/${word}`);
+          if (!r.ok) return;
+          const d = await r.json();
+          if (!Array.isArray(d) || !d[0]) return;
+          const entry = d[0];
+          let ipa = entry.phonetic;
+          if (!ipa && entry.phonetics) { const found = entry.phonetics.find(p => p.text?.trim()); if (found) ipa = found.text; }
+          if (ipa) ipaMap[word] = ipa.replace(/^\/|\/$/g, "");
+        } catch {}
+      }));
+      const parts = tokens.map(t => ipaMap[t.toLowerCase()]).filter(Boolean);
+      return parts.length ? "/" + parts.join(" ") + "/" : "/" + phrase + "/";
+    } catch {
+      return "/" + phrase + "/";
+    }
   }
 
   /* ════════════════════════════════
@@ -721,9 +751,12 @@
       window.speechSynthesis?.cancel();
     };
 
-    /* EN が完了し、かつ両言語の単語解説生成が終わった（or 不要）ときに保存可能 */
+    /* EN が完了し、IPA・単語解説の生成が全て終わったときに保存可能
+       （loading 中に保存すると空文字・空配列が保存される問題を防止） */
     const canSave = enStatus === "done"
+      && enIpaStatus   !== "loading"
       && enWordsStatus !== "loading"
+      && esIpaStatus   !== "loading"
       && esWordsStatus !== "loading";
 
     return (
@@ -1245,20 +1278,24 @@
     const savePhrase = (data) => {
       const tags = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
 
-      /* ── words / words_es が空なら state にもフォールバックを適用 ──
-         DB 側の upsertPhrase でも同じ処理をするが、
-         React state を正しく保ち UI と DB を確実に一致させる。   */
-      const safeWords = (arr, phrase) => {
+      /* ── state 保存前の安全装置（DB 側と同じルールを適用） ──
+         React state を正しく保ち UI と DB が必ず一致するようにする */
+      const safeWords = (arr, src) => {
         if (Array.isArray(arr) && arr.length > 0) return arr;
-        return (phrase || "").split(/\s+/).filter(Boolean).map(w => ({ w }));
+        return (src || "").split(/\s+/).filter(Boolean).map(w => ({ w, m: "", r: "", note: "" }));
+      };
+      const safeIpa = (ipa, src) => {
+        if (ipa && ipa.trim()) return ipa.trim();
+        return src ? "/" + src + "/" : "";
       };
 
       const normalized = {
         ...data,
         tags,
-        words:     safeWords(data.words,    data.phrase),
+        ipa:       safeIpa(data.ipa,    data.phrase),
+        words:     safeWords(data.words, data.phrase),
         phrase_es: data.phrase_es || "",
-        ipa_es:    data.ipa_es    || "",
+        ipa_es:    safeIpa(data.ipa_es,  data.phrase_es),
         words_es:  safeWords(data.words_es, data.phrase_es),
       };
       if (normalized.id) {
