@@ -551,23 +551,28 @@
      ・フレーズをトークン分割
      ・改行区切りバッチ翻訳（API 1回のみ）
      ・{w, r, m, note} 配列を返す
-     ・どちらかが失敗しても throw せず [] を返す
+     ・API 失敗時はスペース分割フォールバック（絶対に空配列を返さない）
   ════════════════════════════════ */
   async function fetchWordBreakdown(phrase, fromLang, toLang, tokenPattern) {
     if (!phrase) return [];
+
+    /* トークン抽出（フォールバック用にも使用） */
+    const rawTokens = phrase.match(tokenPattern) || [];
+    if (!rawTokens.length) return [];
+
+    /* 重複除去（元の出現順を保持） */
+    const seen = new Set();
+    const unique = [];
+    for (const t of rawTokens) {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) { seen.add(k); unique.push(t); }
+    }
+
+    /* ── フォールバック: 翻訳なし・スペルのみ（意味は空）──
+       API が完全に失敗しても「単語のスペル」は必ず保存される */
+    const fallback = unique.slice(0, 14).map(w => ({ w, r: "", m: "", note: "" }));
+
     try {
-      /* 句読点を除いた単語トークンを抽出 */
-      const tokens = phrase.match(tokenPattern) || [];
-      if (!tokens.length) return [];
-
-      /* 重複除去（元の出現順を保持） */
-      const seen = new Set();
-      const unique = [];
-      for (const t of tokens) {
-        const k = t.toLowerCase();
-        if (!seen.has(k)) { seen.add(k); unique.push(t); }
-      }
-
       /* 改行区切りバッチ翻訳（toLang）: API コール 1回 */
       const transMap = {};
       const batch  = unique.slice(0, 14).join("\n");
@@ -576,9 +581,9 @@
         if (unique[i] && line.trim()) transMap[unique[i].toLowerCase()] = line.trim();
       });
 
-      /* 元フレーズの出現順で構築、意味が取れた単語のみ */
+      /* 元フレーズの出現順で構築（意味が取れた単語のみ） */
       const built = new Set();
-      return tokens
+      const translated = rawTokens
         .filter(t => {
           const k = t.toLowerCase();
           if (built.has(k)) return false;
@@ -587,8 +592,12 @@
         })
         .slice(0, 14)
         .map(w => ({ w, r: "", m: transMap[w.toLowerCase()] || "", note: "" }));
+
+      /* 翻訳結果があればそれを使用、なければスペル only フォールバック */
+      return translated.length > 0 ? translated : fallback;
     } catch {
-      return []; // エラーは握りつぶして空配列を返す（処理を止めない）
+      /* API 完全失敗 → スペルのみフォールバック（空配列は絶対に返さない） */
+      return fallback;
     }
   }
 
@@ -693,7 +702,10 @@
       window.speechSynthesis?.cancel();
     };
 
-    const canSave = enStatus === "done";
+    /* EN が完了し、かつ両言語の単語解説生成が終わった（or 不要）ときに保存可能 */
+    const canSave = enStatus === "done"
+      && enWordsStatus !== "loading"
+      && esWordsStatus !== "loading";
 
     return (
       <div className="translate-panel">
@@ -1009,55 +1021,68 @@
 
             {phrase.meaning && <div className="detail-section"><p className="detail-label">日本語訳</p><p className="detail-value">{phrase.meaning}</p></div>}
             {phrase.example && <div className="detail-section"><p className="detail-label">例文</p><p className="detail-example">"{phrase.example}"</p></div>}
-            {(phrase.words||[]).length > 0 && (
+            {/* 🇺🇸 英語 単語解説 — データがあれば表示、空なら「取得中」 */}
+            {HAS_EN && phrase.phrase && (
               <div className="detail-section">
                 <p className="detail-label">🇺🇸 英語 — 単語・フレーズ解説</p>
-                <table className="word-table">
-                  <thead><tr><th>単語</th><th>意味</th><th>品詞メモ</th><th></th></tr></thead>
-                  <tbody>
-                    {phrase.words.map((w, i) => {
-                      const wid = `wt-${phrase.id}-${i}`;
-                      return (
-                        <tr key={i}>
-                          <td><span className="wt-word">{w.w}</span>{w.r && <span className="wt-read">{w.r}</span>}</td>
-                          <td><span className="wt-ja">{w.m}</span></td>
-                          <td>{w.note && <span className="wt-note">{w.note}</span>}</td>
-                          <td><button className={`wt-speak${speakingId===wid?" speaking":""}`} onClick={() => speak(w.w, wid, "en-US")}><SpeakerIcon size={13} speaking={speakingId===wid}/></button></td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {(phrase.words||[]).length === 0 ? (
+                  <p style={{fontSize:".8rem",color:"var(--gray-400)",fontStyle:"italic",display:"flex",alignItems:"center",gap:6}}>
+                    <span className="spinner-sm"/>単語解説を取得中...
+                  </p>
+                ) : (
+                  <table className="word-table">
+                    <thead><tr><th>単語</th><th>意味</th><th>品詞メモ</th><th></th></tr></thead>
+                    <tbody>
+                      {phrase.words.map((w, i) => {
+                        const wid = `wt-${phrase.id}-${i}`;
+                        return (
+                          <tr key={i}>
+                            <td><span className="wt-word">{w.w}</span>{w.r && <span className="wt-read">{w.r}</span>}</td>
+                            <td><span className="wt-ja">{w.m}</span></td>
+                            <td>{w.note && <span className="wt-note">{w.note}</span>}</td>
+                            <td><button className={`wt-speak${speakingId===wid?" speaking":""}`} onClick={() => speak(w.w, wid, "en-US")}><SpeakerIcon size={13} speaking={speakingId===wid}/></button></td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
-            {/* 🇪🇸 スペイン語 単語解説 */}
-            {HAS_ES && (phrase.words_es||[]).length > 0 && (
+            {/* 🇪🇸 スペイン語 単語解説 — データがあれば表示、空なら「取得中」 */}
+            {HAS_ES && phrase.phrase_es && (
               <div className="detail-section">
                 <p className="detail-label" style={{color:"var(--es-accent)"}}>🇪🇸 Español — 単語・フレーズ解説</p>
-                <table className="word-table">
-                  <thead><tr><th>単語</th><th>日本語訳</th><th>品詞メモ</th><th></th></tr></thead>
-                  <tbody>
-                    {phrase.words_es.map((w, i) => {
-                      const wid = `wt-es-${phrase.id}-${i}`;
-                      return (
-                        <tr key={i}>
-                          <td>
-                            <span className="wt-word wt-word-es">{w.w}</span>
-                            {w.r && <span className="wt-read">{w.r}</span>}
-                          </td>
-                          <td><span className="wt-ja">{w.m}</span></td>
-                          <td>{w.note && <span className="wt-note" style={{background:"#ffe8e8",color:"#8b1a1a"}}>{w.note}</span>}</td>
-                          <td>
-                            <button className={`wt-speak wt-speak-es${speakingId===wid?" speaking":""}`}
-                              onClick={() => speak(w.w, wid, "es-ES")}>
-                              <SpeakerIcon size={13} speaking={speakingId===wid}/>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                {(phrase.words_es||[]).length === 0 ? (
+                  <p style={{fontSize:".8rem",color:"var(--gray-400)",fontStyle:"italic",display:"flex",alignItems:"center",gap:6}}>
+                    <span className="spinner-sm"/>単語解説を取得中...
+                  </p>
+                ) : (
+                  <table className="word-table">
+                    <thead><tr><th>単語</th><th>日本語訳</th><th>品詞メモ</th><th></th></tr></thead>
+                    <tbody>
+                      {phrase.words_es.map((w, i) => {
+                        const wid = `wt-es-${phrase.id}-${i}`;
+                        return (
+                          <tr key={i}>
+                            <td>
+                              <span className="wt-word wt-word-es">{w.w}</span>
+                              {w.r && <span className="wt-read">{w.r}</span>}
+                            </td>
+                            <td><span className="wt-ja">{w.m}</span></td>
+                            <td>{w.note && <span className="wt-note" style={{background:"#ffe8e8",color:"#8b1a1a"}}>{w.note}</span>}</td>
+                            <td>
+                              <button className={`wt-speak wt-speak-es${speakingId===wid?" speaking":""}`}
+                                onClick={() => speak(w.w, wid, "es-ES")}>
+                                <SpeakerIcon size={13} speaking={speakingId===wid}/>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
               </div>
             )}
             {(phrase.tags||[]).length > 0 && (
@@ -1100,6 +1125,34 @@
           if (local.length > 0) local.forEach(p => db.upsertPhrase(p));
         } else {
           setPhrases(sbPhrases);
+
+          /* ── words / words_es が空のフレーズをバックグラウンドで自動補完 ──
+             Supabase に古いデータ（単語解説なし）が残っている場合に対応。
+             1 フレーズずつ順番に処理し、API レート制限を回避する。        */
+          const needsRegen = sbPhrases.filter(p =>
+            (p.phrase    && (p.words    || []).length === 0) ||
+            (p.phrase_es && (p.words_es || []).length === 0)
+          );
+          if (needsRegen.length > 0) {
+            (async () => {
+              for (const p of needsRegen) {
+                try {
+                  const [newWords, newWordsEs] = await Promise.all([
+                    (p.words    || []).length === 0 && p.phrase
+                      ? fetchEnWords(p.phrase)
+                      : Promise.resolve(p.words    || []),
+                    (p.words_es || []).length === 0 && p.phrase_es
+                      ? fetchEsWords(p.phrase_es)
+                      : Promise.resolve(p.words_es || []),
+                  ]);
+                  const upd = { ...p, words: newWords, words_es: newWordsEs };
+                  /* React state + Supabase を両方更新 */
+                  setPhrases(ps => ps.map(x => x.id === upd.id ? upd : x));
+                  await db.upsertPhrase(upd);
+                } catch { /* 1件失敗しても次へ続行 */ }
+              }
+            })();
+          }
         }
         if (customCats.length > 0) {
           setCategories(prev => {
@@ -1136,6 +1189,26 @@
       const updated = phrases.find(p => p.id === detailTarget.id);
       if (updated && updated !== detailTarget) setDetail(updated);
     }, [phrases]); // eslint-disable-line
+
+    /* 詳細モーダルを開いたとき words / words_es が空なら即座に再生成 */
+    useEffect(() => {
+      if (!detailTarget) return;
+      const needsEn = detailTarget.phrase    && (detailTarget.words    || []).length === 0;
+      const needsEs = detailTarget.phrase_es && (detailTarget.words_es || []).length === 0;
+      if (!needsEn && !needsEs) return;
+      (async () => {
+        try {
+          const [newWords, newWordsEs] = await Promise.all([
+            needsEn ? fetchEnWords(detailTarget.phrase)       : Promise.resolve(detailTarget.words    || []),
+            needsEs ? fetchEsWords(detailTarget.phrase_es)    : Promise.resolve(detailTarget.words_es || []),
+          ]);
+          const upd = { ...detailTarget, words: newWords, words_es: newWordsEs };
+          setPhrases(ps => ps.map(x => x.id === upd.id ? upd : x));
+          db.upsertPhrase(upd);
+          /* setDetail は phrases 同期 useEffect が自動で更新してくれる */
+        } catch {}
+      })();
+    }, [detailTarget?.id]); // eslint-disable-line
 
     const { speakingId, speak, voiceName, voiceNameEs } = useSpeech();
 
