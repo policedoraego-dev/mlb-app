@@ -547,46 +547,59 @@
   }
 
   /* ════════════════════════════════
-     スペイン語 単語解説 自動生成
-     ・スペイン語フレーズをトークン分割
-     ・改行区切りでバッチ翻訳（API1回）
-     ・単語オブジェクト配列 {w,r,m,note} を返す
+     単語解説 自動生成 共通ユーティリティ
+     ・フレーズをトークン分割
+     ・改行区切りバッチ翻訳（API 1回のみ）
+     ・{w, r, m, note} 配列を返す
+     ・どちらかが失敗しても throw せず [] を返す
   ════════════════════════════════ */
-  async function fetchEsWords(esPhrase) {
-    if (!esPhrase) return [];
-    /* 句読点を除いた単語トークンを抽出 */
-    const tokens = esPhrase.match(/[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi) || [];
-    if (!tokens.length) return [];
-
-    /* 重複除去（元の出現順を保持） */
-    const seen = new Set();
-    const unique = [];
-    for (const t of tokens) {
-      const k = t.toLowerCase();
-      if (!seen.has(k)) { seen.add(k); unique.push(t); }
-    }
-
-    /* 改行区切りでバッチ翻訳（ES→JA）: API コール 1回 */
-    const transMap = {};
+  async function fetchWordBreakdown(phrase, fromLang, toLang, tokenPattern) {
+    if (!phrase) return [];
     try {
-      const batch  = unique.slice(0, 14).join("\n");
-      const result = await translateText(batch, "es", "ja");
-      result.split("\n").forEach((line, i) => {
-        if (unique[i]) transMap[unique[i].toLowerCase()] = line.trim();
-      });
-    } catch { /* ネットワーク失敗時は空のまま */ }
+      /* 句読点を除いた単語トークンを抽出 */
+      const tokens = phrase.match(tokenPattern) || [];
+      if (!tokens.length) return [];
 
-    /* 元フレーズの出現順で構築、意味が取れた単語のみ */
-    const built = new Set();
-    return tokens
-      .filter(t => {
+      /* 重複除去（元の出現順を保持） */
+      const seen = new Set();
+      const unique = [];
+      for (const t of tokens) {
         const k = t.toLowerCase();
-        if (built.has(k)) return false;
-        built.add(k);
-        return !!transMap[k]; // 意味が取れなかったものは除外
-      })
-      .slice(0, 14)
-      .map(w => ({ w, r: "", m: transMap[w.toLowerCase()] || "", note: "" }));
+        if (!seen.has(k)) { seen.add(k); unique.push(t); }
+      }
+
+      /* 改行区切りバッチ翻訳（toLang）: API コール 1回 */
+      const transMap = {};
+      const batch  = unique.slice(0, 14).join("\n");
+      const result = await translateText(batch, fromLang, toLang);
+      result.split("\n").forEach((line, i) => {
+        if (unique[i] && line.trim()) transMap[unique[i].toLowerCase()] = line.trim();
+      });
+
+      /* 元フレーズの出現順で構築、意味が取れた単語のみ */
+      const built = new Set();
+      return tokens
+        .filter(t => {
+          const k = t.toLowerCase();
+          if (built.has(k)) return false;
+          built.add(k);
+          return !!transMap[k];
+        })
+        .slice(0, 14)
+        .map(w => ({ w, r: "", m: transMap[w.toLowerCase()] || "", note: "" }));
+    } catch {
+      return []; // エラーは握りつぶして空配列を返す（処理を止めない）
+    }
+  }
+
+  /* 英語 単語解説 自動生成 (EN → JA) */
+  async function fetchEnWords(enPhrase) {
+    return fetchWordBreakdown(enPhrase, "en", "ja", /[a-zA-Z']+/g);
+  }
+
+  /* スペイン語 単語解説 自動生成 (ES → JA) */
+  async function fetchEsWords(esPhrase) {
+    return fetchWordBreakdown(esPhrase, "es", "ja", /[a-záéíóúüñA-ZÁÉÍÓÚÜÑ]+/gi);
   }
 
   /* ════════════════════════════════
@@ -596,14 +609,16 @@
     const [jaText,      setJaText]      = useState("");
     const [enText,      setEnText]      = useState("");
     const [enStatus,    setEnStatus]    = useState("idle");   // idle|loading|done|error
-    const [enIpa,       setEnIpa]       = useState("");
-    const [enIpaStatus, setEnIpaStatus] = useState("idle");
-    const [esText,      setEsText]      = useState("");
-    const [esStatus,    setEsStatus]    = useState("idle");   // idle|loading|done|error
+    const [enIpa,        setEnIpa]        = useState("");
+    const [enIpaStatus,  setEnIpaStatus]  = useState("idle");
+    const [enWords,      setEnWords]      = useState([]);      // 英語 単語解説
+    const [enWordsStatus,setEnWordsStatus]= useState("idle");
+    const [esText,       setEsText]       = useState("");
+    const [esStatus,     setEsStatus]     = useState("idle");  // idle|loading|done|error
     const [esIpa,        setEsIpa]        = useState("");
     const [esIpaStatus,  setEsIpaStatus]  = useState("idle");
-    const [esWords,      setEsWords]      = useState([]);
-    const [esWordsStatus,setEsWordsStatus]= useState("idle");  // idle|loading|done
+    const [esWords,      setEsWords]      = useState([]);      // スペイン語 単語解説
+    const [esWordsStatus,setEsWordsStatus]= useState("idle");
     const [errMsg,       setErrMsg]       = useState("");
     const timerRef = useRef(null);
 
@@ -617,6 +632,7 @@
       }
       setEnStatus("loading");
       setEnIpa(""); setEnIpaStatus("idle");
+      setEnWords([]); setEnWordsStatus("idle");
       setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
       setEsWords([]); setEsWordsStatus("idle");
       clearTimeout(timerRef.current);
@@ -633,16 +649,28 @@
       return () => clearTimeout(timerRef.current);
     }, [jaText]);
 
-    /* 英語完了 → EN IPA + ES 翻訳 を並列実行 */
+    /* 英語完了 → EN IPA + EN単語解説 + ES翻訳 を全て並列実行 */
     useEffect(() => {
       if (enStatus !== "done" || !enText) return;
-      // EN IPA
+
+      // ① EN IPA（発音記号）
       setEnIpaStatus("loading");
-      fetchEnIpa(enText).then(ipa => { setEnIpa(ipa); setEnIpaStatus("done"); }).catch(() => setEnIpaStatus("done"));
-      // ES 翻訳
+      fetchEnIpa(enText)
+        .then(ipa => { setEnIpa(ipa); setEnIpaStatus("done"); })
+        .catch(() => setEnIpaStatus("done"));
+
+      // ② EN 単語解説（EN→JA バッチ翻訳）
+      setEnWordsStatus("loading");
+      fetchEnWords(enText)
+        .then(ws => { setEnWords(ws); setEnWordsStatus("done"); })
+        .catch(() => { setEnWords([]); setEnWordsStatus("done"); }); // 失敗しても空で続行
+
+      // ③ ES 翻訳（ENが成功した場合のみ）
       if (HAS_ES) {
         setEsStatus("loading");
-        fetchEsTranslation(enText).then(es => { setEsText(es); setEsStatus("done"); }).catch(() => setEsStatus("error"));
+        fetchEsTranslation(enText)
+          .then(es => { setEsText(es); setEsStatus("done"); })
+          .catch(() => setEsStatus("error"));
       }
     }, [enStatus, enText]);
 
@@ -659,6 +687,7 @@
 
     const clear = () => {
       setJaText(""); setEnText(""); setEnStatus("idle"); setEnIpa(""); setEnIpaStatus("idle");
+      setEnWords([]); setEnWordsStatus("idle");
       setEsText(""); setEsStatus("idle"); setEsIpa(""); setEsIpaStatus("idle");
       setEsWords([]); setEsWordsStatus("idle");
       window.speechSynthesis?.cancel();
@@ -748,7 +777,15 @@
             {/* 保存ボタン */}
             <div className="translate-save-row">
               <button className="save-translate-btn" disabled={!canSave}
-                onClick={() => onSaveRequest({ ja: jaText.trim(), en: enText, ipa: enIpa, es: esText, ipa_es: esIpa, words_es: esWords })}>
+                onClick={() => onSaveRequest({
+                  ja:      jaText.trim(),
+                  en:      enText,
+                  ipa:     enIpa,
+                  words:   enWords,   // 英語 単語解説（自動生成）
+                  es:      esText,
+                  ipa_es:  esIpa,
+                  words_es: esWords,  // スペイン語 単語解説（自動生成）
+                })}>
                 ＋ フレーズ帳に保存（EN + ES）
               </button>
             </div>
@@ -1092,6 +1129,14 @@
     const [openWords,      setOpenWords]  = useState({});
     const [showAddCat,     setShowAddCat] = useState(false);
 
+    /* detailTarget を phrases の最新状態に同期
+       （保存後にモーダルを開き直さなくても最新データが表示される） */
+    useEffect(() => {
+      if (!detailTarget) return;
+      const updated = phrases.find(p => p.id === detailTarget.id);
+      if (updated && updated !== detailTarget) setDetail(updated);
+    }, [phrases]); // eslint-disable-line
+
     const { speakingId, speak, voiceName, voiceNameEs } = useSpeech();
 
     const allCategories = useMemo(() => [{ key:"all", label:"すべて", builtIn:true }, ...categories], [categories]);
@@ -1107,7 +1152,14 @@
 
     const savePhrase = (data) => {
       const tags       = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
-      const normalized = { ...data, tags, words: data.words || [], phrase_es: data.phrase_es || "", ipa_es: data.ipa_es || "", words_es: data.words_es || [] };
+      const normalized = {
+        ...data,
+        tags,
+        words:     Array.isArray(data.words)    ? data.words    : [],
+        phrase_es: data.phrase_es || "",
+        ipa_es:    data.ipa_es    || "",
+        words_es:  Array.isArray(data.words_es) ? data.words_es : [],
+      };
       if (normalized.id) {
         setPhrases(ps => ps.map(p => p.id === normalized.id ? normalized : p));
         db.upsertPhrase(normalized);
@@ -1129,8 +1181,21 @@
     const addCategory   = (cat) => { setCategories(cs => [...cs, cat]); db.upsertCategory(cat); };
     const deleteCategory = (key) => { setCategories(cs => cs.filter(c => c.key !== key)); db.deleteCategory(key); if (activeCategory === key) setCategory("all"); };
 
-    const handleSaveRequest = ({ ja, en, ipa, es, ipa_es, words_es }) => {
-      setAddPreset({ phrase: en, meaning: ja, ipa: ipa || "", reading:"", phrase_es: es || "", ipa_es: ipa_es || "", words_es: words_es || [], category: categories[0]?.key || "treatment", example:"", tags:[], starred:false, words:[] });
+    const handleSaveRequest = ({ ja, en, ipa, words, es, ipa_es, words_es }) => {
+      setAddPreset({
+        phrase:    en,
+        meaning:   ja,
+        ipa:       ipa     || "",
+        reading:   "",
+        words:     Array.isArray(words)    ? words    : [],  // 英語 単語解説
+        phrase_es: es      || "",
+        ipa_es:    ipa_es  || "",
+        words_es:  Array.isArray(words_es) ? words_es : [],  // スペイン語 単語解説
+        category:  categories[0]?.key || "treatment",
+        example:   "",
+        tags:      [],
+        starred:   false,
+      });
       setShowAdd(true);
     };
 
