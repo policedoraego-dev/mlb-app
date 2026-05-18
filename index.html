@@ -333,7 +333,26 @@
     },
     async upsertPhrase(p) {
       if (!sb) return;
-      const { error } = await sb.from("phrases").upsert(this._toRow(p));
+      const row = this._toRow(p);
+      /* ══ 最終安全装置 ══════════════════════════════════════════
+         upsert 直前に words / words_es が空配列なら
+         phrase をスペース分割して最低限のオブジェクトを生成する。
+         API の成否・タイミングに完全に依存しない最後の砦。      */
+      if (!row.words || row.words.length === 0) {
+        row.words = (row.phrase || "")
+          .split(/\s+/).filter(Boolean)
+          .map(w => ({ w }));
+        console.info("[SafeGuard] words was empty → space-split fallback applied:", row.words);
+      }
+      if (!row.words_es || row.words_es.length === 0) {
+        row.words_es = (row.phrase_es || "")
+          .split(/\s+/).filter(Boolean)
+          .map(w => ({ w }));
+        if (row.phrase_es)
+          console.info("[SafeGuard] words_es was empty → space-split fallback applied:", row.words_es);
+      }
+      /* ═══════════════════════════════════════════════════════ */
+      const { error } = await sb.from("phrases").upsert(row);
       if (error) console.warn("[Supabase] upsertPhrase:", error.message);
     },
     async deletePhrase(id) {
@@ -1224,14 +1243,23 @@
     }, [phrases, query, activeCategory]);
 
     const savePhrase = (data) => {
-      const tags       = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
+      const tags = Array.isArray(data.tags) ? data.tags : data.tags.split(",").map(t=>t.trim()).filter(Boolean);
+
+      /* ── words / words_es が空なら state にもフォールバックを適用 ──
+         DB 側の upsertPhrase でも同じ処理をするが、
+         React state を正しく保ち UI と DB を確実に一致させる。   */
+      const safeWords = (arr, phrase) => {
+        if (Array.isArray(arr) && arr.length > 0) return arr;
+        return (phrase || "").split(/\s+/).filter(Boolean).map(w => ({ w }));
+      };
+
       const normalized = {
         ...data,
         tags,
-        words:     Array.isArray(data.words)    ? data.words    : [],
+        words:     safeWords(data.words,    data.phrase),
         phrase_es: data.phrase_es || "",
         ipa_es:    data.ipa_es    || "",
-        words_es:  Array.isArray(data.words_es) ? data.words_es : [],
+        words_es:  safeWords(data.words_es, data.phrase_es),
       };
       if (normalized.id) {
         setPhrases(ps => ps.map(p => p.id === normalized.id ? normalized : p));
