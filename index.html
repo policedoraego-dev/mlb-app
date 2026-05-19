@@ -190,14 +190,16 @@
     .modal-header h2 { font-size: 1rem; font-weight: 600; }
     .modal-close { background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer; opacity: .8; line-height: 1; }
     .modal-close:hover { opacity: 1; }
-    .modal-body { padding: 20px; overflow-y: auto; }
+    .modal-body { padding: 20px; overflow-y: auto; flex: 1; min-height: 0; -webkit-overflow-scrolling: touch; }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: .8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
     .form-control { width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-size: .9rem; outline: none; transition: border-color .15s; font-family: inherit; }
     .form-control:focus { border-color: var(--navy-light); }
     select.form-control { cursor: pointer; }
     textarea.form-control { resize: vertical; min-height: 70px; }
-    .modal-footer { padding: 12px 20px 20px; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+    .modal-footer { padding: 12px 20px; padding-bottom: max(20px, env(safe-area-inset-bottom)); display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+    /* form が modal の flex コンテナに参加しスクロール領域を確保する */
+    .modal > form, .modal form { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
     .btn-cancel { padding: 8px 18px; border: 1.5px solid var(--gray-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: .88rem; color: var(--gray-600); }
     .btn-cancel:hover { border-color: var(--gray-400); }
     .btn-save { padding: 8px 22px; background: var(--navy); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; }
