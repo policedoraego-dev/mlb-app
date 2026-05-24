@@ -182,22 +182,68 @@
     .wc-ja { font-size: .7rem; color: var(--gray-600); margin-top: 2px; }
     .wc-note { font-size: .62rem; color: var(--gray-400); }
 
-    /* Modals */
-    .modal-overlay { position: fixed; inset: 0; background: rgba(10,22,40,.5); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-    .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 540px; box-shadow: var(--shadow-lg); overflow: hidden; max-height: 92vh; display: flex; flex-direction: column; }
+    /* ══ モーダル — iOS Safari スクロール完全対応版 ══
+       設計ポイント:
+       ① modal-overlay: position:fixed で背景スクロールを遮断
+       ② modal: flex列で header/body/footer を縦に並べ高さを制御
+       ③ modal-body: flex:1 + min-height:0 が iOS flex スクロールの必須条件
+       ④ modal-footer: env(safe-area-inset-bottom) でホームバーを保護
+       ⑤ max-height に dvh を使用（iOS Safari のツールバー伸縮を反映）  */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,22,40,.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+      /* 背景の body がガタガタしないよう下層スクロールを遮断 */
+      overscroll-behavior: none;
+    }
+    .modal {
+      background: #fff; border-radius: 14px; width: 100%; max-width: 540px;
+      box-shadow: var(--shadow-lg);
+      /* overflow:hidden で角丸クリッピング。スクロールは modal-body が担う */
+      overflow: hidden;
+      /* dvh = Dynamic Viewport Height（iOS Safari のツールバー伸縮を考慮）
+         vh フォールバック付きで旧ブラウザにも対応                          */
+      max-height: 90vh;
+      max-height: 90dvh;
+      display: flex; flex-direction: column;
+    }
     .modal-sm { max-width: 360px; }
-    .modal-header { background: var(--navy); color: #fff; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+    .modal-header {
+      background: var(--navy); color: #fff;
+      padding: 16px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;  /* ヘッダーは縮めない */
+    }
     .modal-header h2 { font-size: 1rem; font-weight: 600; }
     .modal-close { background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer; opacity: .8; line-height: 1; }
     .modal-close:hover { opacity: 1; }
-    .modal-body { padding: 20px; overflow-y: auto; }
+    .modal-body {
+      padding: 20px;
+      /* ① flex:1 で残りの高さを全て使う
+         ② min-height:0 が必須 — これがないと iOS flex では overflow が効かない */
+      flex: 1; min-height: 0;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* iOS 慣性スクロール */
+      overscroll-behavior: contain;      /* body への伝播を防ぐ */
+    }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: .8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
     .form-control { width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-200); border-radius: 8px; font-size: .9rem; outline: none; transition: border-color .15s; font-family: inherit; }
     .form-control:focus { border-color: var(--navy-light); }
     select.form-control { cursor: pointer; }
     textarea.form-control { resize: vertical; min-height: 70px; }
-    .modal-footer { padding: 12px 20px 20px; display: flex; justify-content: flex-end; gap: 10px; flex-shrink: 0; }
+    .modal-footer {
+      /* flex-shrink:0 でフッターが潰れない。ボタンが常に表示される */
+      flex-shrink: 0;
+      padding: 12px 20px;
+      /* env(safe-area-inset-bottom): iPhone ホームバー / ツールバーの高さ分だけ余白を追加
+         最低 20px を保証し、ホームバーのあるデバイスは自動で拡張される              */
+      padding-bottom: max(20px, calc(env(safe-area-inset-bottom) + 12px));
+      display: flex; justify-content: flex-end; gap: 10px;
+      background: #fff;
+      border-top: 1px solid var(--gray-100); /* スクロール中も区切りが見える */
+    }
     .btn-cancel { padding: 8px 18px; border: 1.5px solid var(--gray-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: .88rem; color: var(--gray-600); }
     .btn-cancel:hover { border-color: var(--gray-400); }
     .btn-save { padding: 8px 22px; background: var(--navy); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; }
@@ -263,7 +309,7 @@
       .translate-body { grid-template-columns: 1fr; }
       .translate-divider { border-left: none; border-right: none; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); height: 36px; padding: 0; }
       .translate-arrow-icon { transform: rotate(90deg); }
-      .modal { border-radius: 18px 18px 0 0; max-height: 95vh; position: fixed; bottom: 0; left: 0; right: 0; width: 100%; }
+      .modal { border-radius: 18px 18px 0 0; max-height: 95vh; max-height: 95dvh; position: fixed; bottom: 0; left: 0; right: 0; width: 100%; }
       .modal-overlay { align-items: flex-end; }
     }
 
@@ -1489,6 +1535,15 @@ Japanese input: "${jaText}"`;
     const [openWords,      setOpenWords]  = useState({});
     const [showAddCat,     setShowAddCat] = useState(false);
     const [showSettings,   setShowSettings] = useState(false);
+
+    /* ── モーダルが開いているとき body のスクロールをロック ──
+       iOS Safari では overscroll-behavior だけでは不十分なため、
+       body.style.overflow = 'hidden' で完全に背景スクロールを止める */
+    const anyModalOpen = showSettings || showAddCat || showAdd || !!editTarget || !!detailTarget;
+    useEffect(() => {
+      document.body.style.overflow = anyModalOpen ? 'hidden' : '';
+      return () => { document.body.style.overflow = ''; };
+    }, [anyModalOpen]);
 
     /* detailTarget を phrases の最新状態に同期
        （保存後にモーダルを開き直さなくても最新データが表示される） */
