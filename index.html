@@ -200,32 +200,36 @@
     .modal {
       background: #fff; border-radius: 14px; width: 100%; max-width: 540px;
       box-shadow: var(--shadow-lg);
-      /* overflow:hidden で角丸クリッピング。スクロールは modal-body が担う */
       overflow: hidden;
-      /* dvh = Dynamic Viewport Height（iOS Safari のツールバー伸縮を考慮）
-         vh フォールバック付きで旧ブラウザにも対応                          */
+      height: 90vh;
+      height: 90dvh;
       max-height: 90vh;
       max-height: 90dvh;
-      display: flex; flex-direction: column;
+      /* ══ Grid レイアウト — フレックスチェーン不要の確実なスクロール方法 ══
+         header(auto) / body(1fr=残り全部) / footer(auto) の3行グリッドにする。
+         form に display:contents を使い、body・footer を直接グリッド子要素にする。
+         これにより iOS/Android/デスクトップ全ブラウザで確実にスクロールが機能する。 */
+      display: grid;
+      grid-template-rows: auto 1fr auto;
     }
-    .modal-sm { max-width: 360px; }
+    .modal-sm { max-width: 360px; height: auto; }
     .modal-header {
       background: var(--navy); color: #fff;
       padding: 16px 20px;
       display: flex; justify-content: space-between; align-items: center;
       flex-shrink: 0;  /* ヘッダーは縮めない */
+      border-radius: 14px 14px 0 0; /* overflow:hidden を外したので直接指定 */
     }
     .modal-header h2 { font-size: 1rem; font-weight: 600; }
     .modal-close { background: none; border: none; color: #fff; font-size: 1.2rem; cursor: pointer; opacity: .8; line-height: 1; }
     .modal-close:hover { opacity: 1; }
     .modal-body {
       padding: 20px;
-      /* ① flex:1 で残りの高さを全て使う
-         ② min-height:0 が必須 — これがないと iOS flex では overflow が効かない */
-      flex: 1; min-height: 0;
+      /* グリッドの 1fr 行に収まる。min-height:0 で確実に overflow が機能する */
+      min-height: 0;
       overflow-y: auto;
-      -webkit-overflow-scrolling: touch; /* iOS 慣性スクロール */
-      overscroll-behavior: contain;      /* body への伝播を防ぐ */
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
     }
     .form-group { margin-bottom: 14px; }
     label { display: block; font-size: .8rem; font-weight: 600; color: var(--gray-600); margin-bottom: 4px; }
@@ -243,11 +247,18 @@
       display: flex; justify-content: flex-end; gap: 10px;
       background: #fff;
       border-top: 1px solid var(--gray-100); /* スクロール中も区切りが見える */
+      border-radius: 0 0 14px 14px; /* overflow:hidden を外したので直接指定 */
     }
     .btn-cancel { padding: 8px 18px; border: 1.5px solid var(--gray-200); border-radius: 8px; background: #fff; cursor: pointer; font-size: .88rem; color: var(--gray-600); }
     .btn-cancel:hover { border-color: var(--gray-400); }
     .btn-save { padding: 8px 22px; background: var(--navy); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: .88rem; font-weight: 600; }
     .btn-save:hover { background: var(--navy-light); }
+
+    /* ══ form を display:contents にしてグリッドを透過させる ══
+       form 要素自体をレイアウト上「透明」にし、
+       内部の modal-body・modal-footer を直接グリッド子要素として扱う。
+       これにより form の存在がスクロールチェーンを壊さない。           */
+    .modal > form { display: contents; }
 
     /* フォームセクション区切り */
     .form-section-label { font-size: .72rem; font-weight: 700; letter-spacing: .7px; padding: 8px 10px 6px; border-radius: 6px; margin: 16px 0 10px; }
@@ -309,7 +320,10 @@
       .translate-body { grid-template-columns: 1fr; }
       .translate-divider { border-left: none; border-right: none; border-top: 1px solid var(--gray-200); border-bottom: 1px solid var(--gray-200); height: 36px; padding: 0; }
       .translate-arrow-icon { transform: rotate(90deg); }
-      .modal { border-radius: 18px 18px 0 0; max-height: 95vh; max-height: 95dvh; position: fixed; bottom: 0; left: 0; right: 0; width: 100%; }
+      .modal { border-radius: 18px 18px 0 0; height: 95vh; height: 95dvh; max-height: 95vh; max-height: 95dvh; position: fixed; bottom: 0; left: 0; right: 0; width: 100%; }
+      .modal-sm { height: auto; }
+      .modal-header { border-radius: 18px 18px 0 0; }
+      .modal-footer { border-radius: 0; }
       .modal-overlay { align-items: flex-end; }
     }
 
@@ -337,8 +351,10 @@
   /* ══════════════════════════════════════════════════════════
      ▼ Supabase 設定
   ══════════════════════════════════════════════════════════ */
-  const SUPABASE_URL      = "https://gfwlwmyejrdugfhldpqv.supabase.co";
-  const SUPABASE_ANON_KEY = "sb_publishable_kUCDEQeGEyAwbC8GdeGorg_1JPK7n11";
+  /* デフォルト値（localStorage に保存がなければこちらを使用） */
+  const SUPABASE_URL_DEFAULT      = "https://gfwlwmyejrdugfhldpqv.supabase.co";
+  const SUPABASE_ANON_KEY_DEFAULT = "sb_publishable_kUCDEQeGEyAwbC8GdeGorg_1JPK7n11";
+  const APP_ID                    = "mlb";
 
   /* ══════════════════════════════════════════════════════════
      ▼ APP CONFIG — 将来の多言語分離・商用展開用
@@ -357,10 +373,13 @@
   const HAS_EN = APP_CONFIG.langs.includes("en");
   const HAS_ES = APP_CONFIG.langs.includes("es");
 
-  /* ── Supabase クライアント ──────────────────────────────── */
+  /* ── Supabase クライアント（localStorage 優先）──────────── */
+  const SUPABASE_URL      = (localStorage.getItem("supabase_url")      || "").trim() || SUPABASE_URL_DEFAULT;
+  const SUPABASE_ANON_KEY = (localStorage.getItem("supabase_anon_key") || "").trim() || SUPABASE_ANON_KEY_DEFAULT;
+
   const sb = (() => {
     try {
-      if (!SUPABASE_URL.includes("YOUR") && window.supabase)
+      if (SUPABASE_URL && SUPABASE_ANON_KEY && !SUPABASE_URL.includes("YOUR") && window.supabase)
         return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     } catch {}
     return null;
@@ -382,7 +401,7 @@
       if (!sb) return null;
       const [pr, ca] = await Promise.all([
         sb.from("phrases").select("*").order("created_at"),
-        sb.from("categories").select("*").order("sort_order").eq("built_in", false),
+        sb.from("categories").select("*").order("sort_order").like("key", APP_ID + "-%"),
       ]);
       return {
         phrases:    (pr.data || []).map(this._fromRow),
@@ -469,14 +488,14 @@
 
   /* ── フレーズ初期データ ─────────────────────────────────── */
   const INITIAL_PHRASES = [
-    { id:1, phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", phrase_es:"¿Dónde le duele?", ipa_es:"/ˈdonde le ˈdwele/", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む",note:"動詞"}], words_es:[{w:"Dónde",r:"",m:"どこに",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称単数"}]},
-    { id:2, phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", phrase_es:"Avíseme si la presión es demasiada.", ipa_es:"/aˈβiseme si la preˈsjon es demaˈsjada/", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}], words_es:[{w:"Avíseme",r:"",m:"教えてください",note:"avisarの命令形+間接目的語"},{w:"si",r:"",m:"もし〜なら",note:"接続詞"},{w:"presión",r:"",m:"圧力・プレッシャー",note:"名詞"},{w:"demasiada",r:"",m:"強すぎる",note:"形容詞"}]},
-    { id:3, phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", phrase_es:"Respira profundo y relájate.", ipa_es:"/resˈpira proˈfundo i reˈlaxate/", category:"treatment", example:"Take a deep breath and relax your hamstring.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞"}], words_es:[{w:"Respira",r:"",m:"呼吸する",note:"respirarの命令形"},{w:"profundo",r:"",m:"深く",note:"副詞"},{w:"relájate",r:"",m:"リラックスして",note:"relajarの再帰命令形"}]},
-    { id:4, phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", phrase_es:"¿Cómo siente el brazo hoy?", ipa_es:"/ˈkomo ˈsjente el ˈbraθo oj/", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}], words_es:[{w:"Cómo",r:"",m:"どのように",note:"疑問副詞"},{w:"siente",r:"",m:"感じる",note:"sentirの三人称"},{w:"brazo",r:"",m:"腕",note:"名詞"},{w:"hoy",r:"",m:"今日",note:"副詞"}]},
-    { id:5, phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", phrase_es:"¡Estás listo — ve a por ellos!", ipa_es:"/esˈtas ˈlisto ˈbe a por ˈeʎos/", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}], words_es:[{w:"Estás",r:"",m:"あなたは〜だ",note:"estar二人称"},{w:"listo",r:"",m:"準備完了",note:"形容詞"},{w:"ve",r:"",m:"行け",note:"ir の命令形"},{w:"ellos",r:"",m:"彼ら",note:"三人称複数"}]},
-    { id:6, phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", phrase_es:"Aplica hielo por 20 minutos después del juego.", ipa_es:"/aˈplika ˈjelo por ˈbeinte miˈnutos desˈpwes del ˈxweɣo/", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}], words_es:[{w:"Aplica",r:"",m:"適用する・当てる",note:"aplicarの命令形"},{w:"hielo",r:"",m:"氷",note:"名詞"},{w:"minutos",r:"",m:"分（時間）",note:"名詞複数"},{w:"después",r:"",m:"〜の後で",note:"副詞"},{w:"juego",r:"",m:"試合・ゲーム",note:"名詞"}]},
-    { id:7, phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", phrase_es:"Necesito referirle al médico del equipo.", ipa_es:"/neθeˈsito refeˈrirle al ˈmeðiko del eˈkipo/", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター"}], words_es:[{w:"Necesito",r:"",m:"〜が必要です",note:"necesitar一人称"},{w:"referirle",r:"",m:"紹介する",note:"referir＋間接目的語"},{w:"médico",r:"",m:"医師・ドクター",note:"名詞"},{w:"equipo",r:"",m:"チーム",note:"名詞"}]},
-    { id:8, phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", phrase_es:"En una escala del 1 al 10, ¿cuánto le duele?", ipa_es:"/en ˈuna esˈkala del ˈuno al ˈdjez ˈkwanto le ˈdwele/", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}], words_es:[{w:"escala",r:"",m:"スケール・尺度",note:"名詞"},{w:"cuánto",r:"",m:"どのくらい",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称"}]},
+    { id:"mlb-init-001", phrase:"Where does it hurt?", ipa:"/wɛr dʌz ɪt hɜːrt/", reading:"ウェア ダズ イット ハート？", meaning:"どこが痛みますか？", phrase_es:"¿Dónde le duele?", ipa_es:"/ˈdonde le ˈdwele/", category:"treatment", example:"Where does it hurt the most when I press here?", tags:["assessment","pain"], starred:false, words:[{w:"Where",r:"ウェア",m:"どこに",note:"疑問副詞"},{w:"does",r:"ダズ",m:"〜しますか",note:"助動詞"},{w:"hurt",r:"ハート",m:"痛む",note:"動詞"}], words_es:[{w:"Dónde",r:"",m:"どこに",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称単数"}]},
+    { id:"mlb-init-002", phrase:"Let me know if the pressure is too much.", ipa:"/lɛt miː noʊ ɪf ðə ˈprɛʃər ɪz tuː mʌtʃ/", reading:"レット ミー ノウ イフ ザ プレッシャー イズ トゥー マッチ", meaning:"圧が強すぎたら教えてください。", phrase_es:"Avíseme si la presión es demasiada.", ipa_es:"/aˈβiseme si la preˈsjon es demaˈsjada/", category:"treatment", example:"Relax your shoulder — let me know if the pressure is too much.", tags:["pressure","communication"], starred:true, words:[{w:"Let me know",r:"レット ミー ノウ",m:"教えてください",note:"慣用表現"},{w:"pressure",r:"プレッシャー",m:"圧力",note:"名詞"},{w:"too much",r:"トゥー マッチ",m:"強すぎる",note:"副詞句"}], words_es:[{w:"Avíseme",r:"",m:"教えてください",note:"avisarの命令形+間接目的語"},{w:"si",r:"",m:"もし〜なら",note:"接続詞"},{w:"presión",r:"",m:"圧力・プレッシャー",note:"名詞"},{w:"demasiada",r:"",m:"強すぎる",note:"形容詞"}]},
+    { id:"mlb-init-003", phrase:"Take a deep breath and relax.", ipa:"/teɪk ə diːp brɛθ ænd rɪˈlæks/", reading:"テイク ア ディープ ブレス アンド リラックス", meaning:"深呼吸してリラックスしてください。", phrase_es:"Respira profundo y relájate.", ipa_es:"/resˈpira proˈfundo i reˈlaxate/", category:"treatment", example:"Take a deep breath and relax your hamstring.", tags:["relaxation","breathing"], starred:false, words:[{w:"Take",r:"テイク",m:"する・とる",note:"動詞"},{w:"deep",r:"ディープ",m:"深い",note:"形容詞"},{w:"breath",r:"ブレス",m:"息",note:"名詞"},{w:"relax",r:"リラックス",m:"力を抜く",note:"動詞"}], words_es:[{w:"Respira",r:"",m:"呼吸する",note:"respirarの命令形"},{w:"profundo",r:"",m:"深く",note:"副詞"},{w:"relájate",r:"",m:"リラックスして",note:"relajarの再帰命令形"}]},
+    { id:"mlb-init-004", phrase:"How's the arm feeling today?", ipa:"/haʊz ðə ɑːrm ˈfiːlɪŋ təˈdeɪ/", reading:"ハウズ ザ アーム フィーリング トゥデイ？", meaning:"今日、腕の調子はどうですか？", phrase_es:"¿Cómo siente el brazo hoy?", ipa_es:"/ˈkomo ˈsjente el ˈbraθo oj/", category:"clubhouse", example:"Hey, how's the arm feeling today after yesterday's start?", tags:["check-in","arm"], starred:true, words:[{w:"How's",r:"ハウズ",m:"どんな状態ですか",note:"How is の短縮"},{w:"arm",r:"アーム",m:"腕",note:"名詞"},{w:"feeling",r:"フィーリング",m:"感じている",note:"進行形"},{w:"today",r:"トゥデイ",m:"今日は",note:"副詞"}], words_es:[{w:"Cómo",r:"",m:"どのように",note:"疑問副詞"},{w:"siente",r:"",m:"感じる",note:"sentirの三人称"},{w:"brazo",r:"",m:"腕",note:"名詞"},{w:"hoy",r:"",m:"今日",note:"副詞"}]},
+    { id:"mlb-init-005", phrase:"You're all set — go get 'em!", ipa:"/jʊər ɔːl sɛt — ɡoʊ ɡɛt əm/", reading:"ユーアー オール セット — ゴー ゲット エム！", meaning:"準備完了！頑張ってきてください！", phrase_es:"¡Estás listo — ve a por ellos!", ipa_es:"/esˈtas ˈlisto ˈbe a por ˈeʎos/", category:"game-day", example:"That's it for today's warmup. You're all set — go get 'em!", tags:["motivation","pre-game"], starred:false, words:[{w:"You're all set",r:"ユーアー オール セット",m:"準備完了です",note:"慣用表現"},{w:"go get 'em",r:"ゴー ゲット エム",m:"やっつけてこい！",note:"'em = them の口語"}], words_es:[{w:"Estás",r:"",m:"あなたは〜だ",note:"estar二人称"},{w:"listo",r:"",m:"準備完了",note:"形容詞"},{w:"ve",r:"",m:"行け",note:"ir の命令形"},{w:"ellos",r:"",m:"彼ら",note:"三人称複数"}]},
+    { id:"mlb-init-006", phrase:"Ice it for 20 minutes after the game.", ipa:"/aɪs ɪt fɔːr ˈtwɛnti ˈmɪnɪts ˈæftər ðə ɡeɪm/", reading:"アイス イット フォー 20 ミニッツ アフター ザ ゲーム", meaning:"試合後、20分間アイシングしてください。", phrase_es:"Aplica hielo por 20 minutos después del juego.", ipa_es:"/aˈplika ˈjelo por ˈbeinte miˈnutos desˈpwes del ˈxweɣo/", category:"recovery", example:"Great game! Ice it for 20 minutes after the game.", tags:["icing","recovery","post-game"], starred:false, words:[{w:"Ice",r:"アイス",m:"アイシングする",note:"動詞"},{w:"for 20 minutes",r:"フォー トゥエンティ ミニッツ",m:"20分間",note:"期間"},{w:"after the game",r:"アフター ザ ゲーム",m:"試合後に",note:"前置詞句"}], words_es:[{w:"Aplica",r:"",m:"適用する・当てる",note:"aplicarの命令形"},{w:"hielo",r:"",m:"氷",note:"名詞"},{w:"minutos",r:"",m:"分（時間）",note:"名詞複数"},{w:"después",r:"",m:"〜の後で",note:"副詞"},{w:"juego",r:"",m:"試合・ゲーム",note:"名詞"}]},
+    { id:"mlb-init-007", phrase:"I'll need to refer you to the team physician.", ipa:"/aɪl niːd tə rɪˈfɜːr juː tə ðə tiːm fɪˈzɪʃən/", reading:"アイル ニード トゥ リファー ユー トゥ ザ チーム フィジシャン", meaning:"チームドクターに診てもらう必要があります。", phrase_es:"Necesito referirle al médico del equipo.", ipa_es:"/neθeˈsito refeˈrirle al ˈmeðiko del eˈkipo/", category:"injury", example:"This looks beyond my scope — I'll need to refer you to the team physician.", tags:["referral","medical"], starred:true, words:[{w:"I'll",r:"アイル",m:"〜するつもりです",note:"I will の短縮"},{w:"need to",r:"ニード トゥ",m:"〜する必要がある"},{w:"refer A to B",r:"リファー",m:"AをBに紹介する",note:"医療動詞句"},{w:"team physician",r:"チーム フィジシャン",m:"チームドクター"}], words_es:[{w:"Necesito",r:"",m:"〜が必要です",note:"necesitar一人称"},{w:"referirle",r:"",m:"紹介する",note:"referir＋間接目的語"},{w:"médico",r:"",m:"医師・ドクター",note:"名詞"},{w:"equipo",r:"",m:"チーム",note:"名詞"}]},
+    { id:"mlb-init-008", phrase:"On a scale of 1 to 10, how's the pain?", ipa:"/ɒn ə skeɪl əv wʌn tə tɛn haʊz ðə peɪn/", reading:"オン ア スケール オブ ワン トゥ テン、ハウズ ザ ペイン？", meaning:"1〜10のスケールで痛みはどのくらいですか？", phrase_es:"En una escala del 1 al 10, ¿cuánto le duele?", ipa_es:"/en ˈuna esˈkala del ˈuno al ˈdjez ˈkwanto le ˈdwele/", category:"treatment", example:"On a scale of 1 to 10, how's the pain when you rotate your shoulder?", tags:["assessment","pain scale"], starred:false, words:[{w:"On a scale of 1 to 10",r:"オン ア スケール",m:"1〜10のスケールで",note:"評価の慣用表現"},{w:"how's",r:"ハウズ",m:"どのくらいですか"},{w:"pain",r:"ペイン",m:"痛み",note:"名詞"}], words_es:[{w:"escala",r:"",m:"スケール・尺度",note:"名詞"},{w:"cuánto",r:"",m:"どのくらい",note:"疑問副詞"},{w:"le",r:"",m:"あなたに",note:"間接目的語"},{w:"duele",r:"",m:"痛む",note:"動詞 doler 三人称"}]},
   ];
 
   /* ════════════════════════════════
@@ -1046,20 +1065,30 @@ Japanese input: "${jaText}"`;
   ════════════════════════════════ */
   function SettingsModal({ onClose }) {
     const [key,     setKey]     = useState(() => localStorage.getItem("openai_api_key") || "");
+    const [sbUrl,   setSbUrl]   = useState(() => localStorage.getItem("supabase_url")      || "");
+    const [sbKey,   setSbKey]   = useState(() => localStorage.getItem("supabase_anon_key") || "");
     const [saved,   setSaved]   = useState(false);
     const [testing, setTesting] = useState(false);
     const [testMsg, setTestMsg] = useState("");
 
     const saveKey = () => {
+      /* OpenAI API キー */
       const trimmed = key.trim();
-      if (trimmed) {
-        localStorage.setItem("openai_api_key", trimmed);
-      } else {
-        localStorage.removeItem("openai_api_key");
-      }
-      setSaved(true);
-      setTestMsg("");
-      setTimeout(() => setSaved(false), 2500);
+      if (trimmed) localStorage.setItem("openai_api_key", trimmed);
+      else         localStorage.removeItem("openai_api_key");
+      /* Supabase 設定 */
+      const urlTrimmed = sbUrl.trim();
+      const keyTrimmed = sbKey.trim();
+      const sbChanged  = urlTrimmed !== (localStorage.getItem("supabase_url") || "") ||
+                         keyTrimmed !== (localStorage.getItem("supabase_anon_key") || "");
+      if (urlTrimmed) localStorage.setItem("supabase_url",      urlTrimmed);
+      else            localStorage.removeItem("supabase_url");
+      if (keyTrimmed) localStorage.setItem("supabase_anon_key", keyTrimmed);
+      else            localStorage.removeItem("supabase_anon_key");
+      setSaved(true); setTestMsg("");
+      /* Supabase 設定が変わった場合はリロードして接続を更新 */
+      if (sbChanged) { setTimeout(() => window.location.reload(), 800); }
+      else           { setTimeout(() => setSaved(false), 2500); }
     };
 
     const clearKey = () => {
@@ -1107,6 +1136,34 @@ Japanese input: "${jaText}"`;
             <button className="modal-close" onClick={onClose}>✕</button>
           </div>
           <div className="modal-body">
+            {/* ── Supabase 設定 ── */}
+            <div className="form-group">
+              <label>Supabase URL</label>
+              <input
+                type="text"
+                className="form-control settings-key-input"
+                value={sbUrl}
+                onChange={e => { setSbUrl(e.target.value); setSaved(false); }}
+                placeholder={SUPABASE_URL_DEFAULT}
+                autoComplete="off"
+              />
+            </div>
+            <div className="form-group">
+              <label>Supabase ANON KEY</label>
+              <input
+                type="password"
+                className="form-control settings-key-input"
+                value={sbKey}
+                onChange={e => { setSbKey(e.target.value); setSaved(false); }}
+                placeholder="sb_publishable_..."
+                autoComplete="off"
+              />
+              <p className="settings-note">
+                空欄の場合はデフォルト値で接続します。変更後は自動でページを再読み込みします。
+              </p>
+            </div>
+            <hr style={{border:"none",borderTop:"1px solid var(--gray-200)",margin:"8px 0 14px"}}/>
+            {/* ── OpenAI API キー ── */}
             <div className="form-group">
               <label>OpenAI API キー</label>
               <input
@@ -1170,7 +1227,7 @@ Japanese input: "${jaText}"`;
       e.preventDefault();
       const name = (emoji ? emoji + " " : "") + label.trim();
       if (!name) return;
-      onAdd({ key: "custom-" + Date.now(), label: name, paletteIdx, builtIn: false });
+      onAdd({ key: APP_ID + "-custom-" + Date.now(), label: name, paletteIdx, builtIn: false });
       onClose();
     };
     return (
@@ -1453,27 +1510,61 @@ Japanese input: "${jaText}"`;
   ════════════════════════════════ */
   function App() {
     const [phrases, setPhrases] = useState(() => {
-      try { const s = localStorage.getItem("mlb-phrases"); return s ? JSON.parse(s) : INITIAL_PHRASES; } catch { return INITIAL_PHRASES; }
+      try { const s = localStorage.getItem(APP_ID + "-phrases"); return s ? JSON.parse(s) : INITIAL_PHRASES; } catch { return INITIAL_PHRASES; }
     });
     const [categories, setCategories] = useState(() => {
-      try { const s = localStorage.getItem("mlb-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
+      try { const s = localStorage.getItem(APP_ID + "-categories"); return s ? JSON.parse(s) : DEFAULT_CATEGORIES; } catch { return DEFAULT_CATEGORIES; }
     });
 
-    useEffect(() => { localStorage.setItem("mlb-phrases",    JSON.stringify(phrases));    }, [phrases]);
-    useEffect(() => { localStorage.setItem("mlb-categories", JSON.stringify(categories)); }, [categories]);
+    useEffect(() => { localStorage.setItem(APP_ID + "-phrases",    JSON.stringify(phrases));    }, [phrases]);
+    useEffect(() => { localStorage.setItem(APP_ID + "-categories", JSON.stringify(categories)); }, [categories]);
 
-    /* Supabase 起動時同期 */
+    /* ══════════════════════════════════════════════════════════
+       Supabase 起動時同期（完全修正版）
+       ─────────────────────────────────────────────────────────
+       【設計方針】
+       ① localStorage を「一次キャッシュ」として必ず読む
+       ② Supabase を「正規データストア」として扱う
+       ③ マージ戦略：Supabase にあるものは Supabase を優先し、
+          ローカルにしかないものは Supabase へ push して保持する
+          → データが「消える」現象を根絶する
+       ④ カテゴリも同様にマージ（上書きしない）
+    ══════════════════════════════════════════════════════════ */
     const [syncStatus, setSyncStatus] = useState(db.ready ? "syncing" : "local");
     useEffect(() => {
       if (!db.ready) return;
       db.loadAll().then(result => {
         if (!result) { setSyncStatus("error"); return; }
         const { phrases: sbPhrases, customCats } = result;
+
+        /* ── ローカルの現在データを取得（同期の比較用）── */
+        const localPhrases = (() => {
+          try { return JSON.parse(localStorage.getItem(APP_ID + "-phrases") || "[]"); } catch { return []; }
+        })();
+
         if (sbPhrases.length === 0) {
-          const local = (() => { try { return JSON.parse(localStorage.getItem("mlb-phrases")||"[]"); } catch { return []; } })();
-          if (local.length > 0) local.forEach(p => db.upsertPhrase(p));
+          /* Supabase が空 → ローカルを全件 push（初回起動 or リセット後）
+             UI はすでに localStorage で初期化済みなので setPhrases は不要 */
+          if (localPhrases.length > 0) {
+            localPhrases.forEach(p => db.upsertPhrase(p));
+          }
         } else {
-          setPhrases(sbPhrases);
+          /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+             双方向マージ — どのデバイスのデータも消えない設計
+             ① Supabase にあるデータ → そのまま採用（正とする）
+             ② ローカルにしかないデータ → Supabase へ push（失敗リトライ兼用）
+             ③ 結果: 全デバイスが同じデータを見られる
+          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+          const sbIds = new Set(sbPhrases.map(p => String(p.id)));
+          const localOnlyPhrases = localPhrases.filter(p => !sbIds.has(String(p.id)));
+
+          /* ローカル専用フレーズを Supabase へ push（オフライン時の保存失敗リトライも兼ねる） */
+          if (localOnlyPhrases.length > 0) {
+            localOnlyPhrases.forEach(p => db.upsertPhrase(p));
+          }
+
+          /* Supabase データ + ローカル専用データで state を更新 */
+          setPhrases([...sbPhrases, ...localOnlyPhrases]);
 
           /* ── words / words_es / ipa_es が空のフレーズをバックグラウンドで自動補完 ──
              Supabase に古いデータが残っている場合に対応（1件ずつ処理）。
@@ -1507,12 +1598,26 @@ Japanese input: "${jaText}"`;
             })();
           }
         }
-        if (customCats.length > 0) {
-          setCategories(prev => {
-            const builtins = prev.filter(c => c.builtIn);
-            return [...builtins, ...customCats.filter(c => !builtins.find(b => b.key === c.key))];
-          });
-        }
+
+        /* ── カテゴリ双方向マージ ──
+           ・builtIn カテゴリは常に保持
+           ・Supabase にあるカスタムカテゴリを採用
+           ・ローカルにしかないカスタムカテゴリも Supabase へ push して全デバイスで共有  */
+        setCategories(prev => {
+          const builtins       = prev.filter(c => c.builtIn);
+          const existingCustom = prev.filter(c => !c.builtIn);
+          if (customCats.length === 0) {
+            /* Supabase にカスタムカテゴリなし → ローカルのカテゴリを push して同期 */
+            if (existingCustom.length > 0) existingCustom.forEach(c => db.upsertCategory(c));
+            return prev;
+          }
+          const sbCatKeys     = new Set(customCats.map(c => c.key));
+          const localOnlyCats = existingCustom.filter(c => !sbCatKeys.has(c.key));
+          /* ローカル専用カテゴリも Supabase へ push → 全デバイスで見えるようにする */
+          localOnlyCats.forEach(c => db.upsertCategory(c));
+          return [...builtins, ...customCats, ...localOnlyCats];
+        });
+
         setSyncStatus("ok");
       }).catch(() => setSyncStatus("error"));
     }, []); // eslint-disable-line
@@ -1525,6 +1630,69 @@ Japanese input: "${jaText}"`;
       window.addEventListener("offline", off);
       return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
     }, []);
+
+    /* ══════════════════════════════════════════════════════════
+       手動 / 自動 再同期関数
+       ・手動同期ボタン押下時
+       ・画面がアクティブになったとき（タブ切り替え・スリープ復帰）
+       ・いずれも Supabase を正として最新データを取得し state を更新
+    ══════════════════════════════════════════════════════════ */
+    const syncNow = useCallback(async () => {
+      if (!db.ready) return;
+      setSyncStatus("syncing");
+      try {
+        const result = await db.loadAll();
+        if (!result) { setSyncStatus("error"); return; }
+        const { phrases: sbPhrases, customCats } = result;
+        if (sbPhrases.length > 0) {
+          setPhrases(prev => {
+            const sbIds = new Set(sbPhrases.map(p => String(p.id)));
+            const localOnly = prev.filter(p => !sbIds.has(String(p.id)));
+            if (localOnly.length > 0) localOnly.forEach(p => db.upsertPhrase(p));
+            return [...sbPhrases, ...localOnly];
+          });
+        }
+        setCategories(prev => {
+          const builtins = prev.filter(c => c.builtIn);
+          if (customCats.length === 0) return prev;
+          const sbCatKeys = new Set(customCats.map(c => c.key));
+          const localOnly = prev.filter(c => !c.builtIn && !sbCatKeys.has(c.key));
+          if (localOnly.length > 0) localOnly.forEach(c => db.upsertCategory(c));
+          return [...builtins, ...customCats, ...localOnly];
+        });
+        setSyncStatus("ok");
+      } catch { setSyncStatus("error"); }
+    }, []);
+
+    /* 画面がアクティブになったとき自動同期（タブ切り替え・ホーム画面から戻る等） */
+    useEffect(() => {
+      const onVisible = () => { if (!document.hidden) syncNow(); };
+      document.addEventListener("visibilitychange", onVisible);
+      return () => document.removeEventListener("visibilitychange", onVisible);
+    }, [syncNow]);
+
+    /* Supabase Realtime — 他のデバイスの変更をリアルタイムで受信 */
+    useEffect(() => {
+      if (!sb) return;
+      const channel = sb
+        .channel("realtime-phrases")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "phrases" }, ({ new: row }) => {
+          const p = db._fromRow(row);
+          setPhrases(ps => ps.find(x => x.id === p.id) ? ps : [...ps, p]);
+        })
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "phrases" }, ({ new: row }) => {
+          const p = db._fromRow(row);
+          setPhrases(ps => ps.map(x => x.id === p.id ? p : x));
+        })
+        .on("postgres_changes", { event: "DELETE", schema: "public", table: "phrases" }, ({ old: row }) => {
+          setPhrases(ps => ps.filter(x => x.id !== row.id));
+        })
+        .on("postgres_changes", { event: "*", schema: "public", table: "categories" }, () => {
+          syncNow(); /* カテゴリ変更時は全体を再同期 */
+        })
+        .subscribe(status => console.log("[Realtime]", status));
+      return () => { sb.removeChannel(channel); };
+    }, [syncNow]);
 
     const [query,          setQuery]      = useState("");
     const [activeCategory, setCategory]   = useState("all");
@@ -1666,6 +1834,10 @@ Japanese input: "${jaText}"`;
             <div className="header-top">
               <div className="header-icon">⚾</div>
               <h1>MLB Phrase Book <span className="triple-badge">TRIPLE</span></h1>
+              {db.ready && (
+                <button className="settings-btn" onClick={syncNow} title="今すぐ同期"
+                  style={syncStatus==="syncing"?{animation:"spin .7s linear infinite"}:{}}>🔄</button>
+              )}
               <button className="settings-btn" onClick={() => setShowSettings(true)} title="設定（APIキー）">⚙</button>
             </div>
             <p className="header-sub">Massage Therapist Edition — 🇯🇵 🇺🇸 🇪🇸 トリプルマスター版</p>
@@ -1798,12 +1970,20 @@ Japanese input: "${jaText}"`;
   ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
 
-<!-- ── Service Worker 登録 ── -->
+<!-- ── Service Worker — 古いキャッシュを即削除してから新しいSWを登録 ── -->
 <script>
   if ("serviceWorker" in navigator) {
+    // ① まず既存のSW全削除＆キャッシュクリア
+    navigator.serviceWorker.getRegistrations().then(regs => {
+      regs.forEach(r => { console.log("[SW] unregistering old SW:", r.scope); r.unregister(); });
+    });
+    caches.keys().then(keys => {
+      keys.forEach(k => { console.log("[SW] deleting cache:", k); caches.delete(k); });
+    });
+    // ② 新しいSW（キャッシュしない版）を登録
     window.addEventListener("load", () => {
       navigator.serviceWorker.register("./sw.js")
-        .then(r => console.log("[SW] registered:", r.scope))
+        .then(r => console.log("[SW] registered (no-cache):", r.scope))
         .catch(e => console.warn("[SW] registration failed:", e));
     });
   }
