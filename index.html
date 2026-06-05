@@ -401,11 +401,15 @@
       if (!sb) return null;
       const [pr, ca] = await Promise.all([
         sb.from("phrases").select("*").order("created_at"),
-        sb.from("categories").select("*").order("sort_order").like("key", APP_ID + "-%"),
+        sb.from("categories").select("*").order("sort_order"),   // フィルターなし — 全カテゴリを取得
       ]);
+      /* DEFAULT_CATEGORIES のキーは組み込み済みなので除外し、それ以外をカスタムとして返す */
+      const BUILTIN_KEYS = new Set(["treatment","clubhouse","game-day","recovery","injury"]);
       return {
         phrases:    (pr.data || []).map(this._fromRow),
-        customCats: (ca.data || []).map(r => ({ key: r.key, label: r.label, paletteIdx: r.palette_idx, builtIn: false })),
+        customCats: (ca.data || [])
+          .filter(r => !BUILTIN_KEYS.has(r.key))
+          .map(r => ({ key: r.key, label: r.label, paletteIdx: r.palette_idx || 0, builtIn: false })),
       };
     },
     async upsertPhrase(p) {
